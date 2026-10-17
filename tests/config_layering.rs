@@ -62,7 +62,7 @@ fn defaults_apply_with_no_file_and_no_flags() {
     assert_eq!(
         cfg.providers,
         Provider::DEFAULT_ORDER.to_vec(),
-        "DankMaterialShell's six, in DankMaterialShell's order"
+        "all six providers, in the documented order"
     );
 }
 

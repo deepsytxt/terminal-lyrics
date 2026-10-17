@@ -1,10 +1,8 @@
 //! Finding lyrics for a track.
 //!
-//! This is DankMaterialShell's lyrics engine (`dankgo/lyrics`), ported: the
-//! same providers in the same order, the same matching, the same race, and the
-//! same cache — files, keys and all. Running `lyrics` next to DMS, both pick
-//! the same lyrics for the same song, and whichever looked a song up first
-//! saves the other the trip. See [`cache::default_dir`].
+//! Six providers raced at once, with a cache in front of them whose files and
+//! keys follow a fixed format, so it can be shared. See
+//! [`cache::default_dir`].
 //!
 //! Order: `--lrc-dir`, then a lyrics file next to the track (see
 //! [`sidecar`]), then the cache and the providers, raced by [`engine`]:
@@ -132,8 +130,7 @@ pub fn local_lookup(dir: &Path, track: &Track) -> Option<Found> {
 /// One provider, and the name it goes by in the config.
 ///
 /// The list of these *is* the on/off switch: dropping a name skips that
-/// provider, and the order of the list is the priority order. The default is
-/// DMS's.
+/// provider, and the order of the list is the priority order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Provider {
@@ -146,7 +143,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    /// The documented order, and the default: DMS's.
+    /// The documented order, and the default.
     pub const DEFAULT_ORDER: [Provider; 6] = [
         Provider::BetterLyrics,
         Provider::Unison,
@@ -218,7 +215,7 @@ impl std::fmt::Display for Provider {
     }
 }
 
-/// The request DMS would send for this track: the title trimmed, every artist
+/// The request for this track: the title trimmed, every artist
 /// joined, a length only once it is over a second, and the file URL only for
 /// a local file.
 pub fn request_for(track: &Track, network: bool) -> Request {

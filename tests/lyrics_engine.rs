@@ -1,7 +1,4 @@
 //! The provider race and the cache around it, driven through stub providers.
-//!
-//! Ported from DankMaterialShell's own tests (`dankgo/lyrics`), so the two
-//! engines are held to the same behaviour.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

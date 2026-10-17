@@ -106,9 +106,8 @@ pub fn track_from_metadata(md: &HashMap<String, OwnedValue>) -> Option<Track> {
         .get("xesam:artist")
         .map(lenient_string_list)
         .unwrap_or_default();
-    // Every artist, joined the way DankMaterialShell's player layer joins
-    // them: the lyrics lookup and its cache key are built from this, so it
-    // has to read the same.
+    // Every artist, joined with ", ": the lyrics lookup and its cache key are
+    // built from this, so changing the separator changes every key.
     let artist = artists.join(", ");
     let first_artist = artists.first().cloned().unwrap_or_default();
 

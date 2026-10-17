@@ -1,9 +1,8 @@
 //! The document formats providers and local files answer in.
 //!
-//! Each parser takes untrusted bytes and returns [`Lyrics`]. They are ports of
-//! DankMaterialShell's parsers rather than reuses of [`crate::lrc`], because the
-//! point of the port is to read every document the way DMS reads it: the same
-//! text, the same stamps, the same voices.
+//! Each parser takes untrusted bytes and returns [`Lyrics`]. They are separate
+//! from [`crate::lrc`] because they read every document into the provider
+//! model, whose text, stamps and voices are what the cache stores.
 //!
 //! All of them expect hostile input and cap it: [`MAX_SOURCE_BYTES`] of input,
 //! [`MAX_LINES`] lines and [`MAX_WORDS`] words, past which they return

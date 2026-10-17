@@ -1,8 +1,7 @@
 //! The lyrics model the providers answer in, and the track they are asked about.
 //!
-//! This is DankMaterialShell's model (`dankgo/lyrics`), field for field, and it
-//! serialises to the same JSON — the cache files are that JSON, and the cache is
-//! shared with DMS (see [`super::cache`]). Display never reads this directly:
+//! It serialises to the JSON the cache files hold, so its fields are a file
+//! format (see [`super::cache`]). Display never reads this directly:
 //! [`super::display`] turns it into [`crate::lrc::Lyrics`] once, at the end.
 
 use std::collections::BTreeMap;
@@ -242,7 +241,7 @@ pub struct Request {
 const DURATION_SLACK: i64 = 8;
 
 impl Request {
-    /// Whole seconds, rounded the way DMS rounds them (half up).
+    /// Whole seconds, rounded half up.
     pub fn seconds(&self) -> i64 {
         if self.duration.is_finite() && self.duration > 0.0 {
             (self.duration + 0.5).floor() as i64
@@ -304,7 +303,7 @@ impl Request {
 
 /// Lowercase one char at a time, the way Go's `strings.ToLower` does: no
 /// context-dependent final sigma, and `İ` is plain `i`. Cache keys are built
-/// from this, so it has to agree with DMS exactly.
+/// from this, so it must not drift.
 pub(crate) fn go_lower(s: &str) -> String {
     s.chars()
         .map(|c| {

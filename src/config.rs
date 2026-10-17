@@ -201,7 +201,7 @@ pub struct Config {
     /// `Position` before we re-anchor the clock.
     pub resync_threshold_ms: u64,
     /// Which network sources to consult, in priority order. Dropping a name
-    /// is how a provider is turned off. The default is DankMaterialShell's.
+    /// is how a provider is turned off.
     pub providers: Vec<Provider>,
 }
 
@@ -314,9 +314,8 @@ pub fn default_config_path() -> Option<PathBuf> {
         .map(|d| d.config_dir().join("config.toml"))
 }
 
-/// Where lyrics are cached: DankMaterialShell's cache when DMS is installed,
-/// so the two share answers, and `$XDG_CACHE_HOME/terminal-lyrics/lyrics/`
-/// otherwise.
+/// Where lyrics are cached: the shared cache when it exists, and
+/// `$XDG_CACHE_HOME/terminal-lyrics/lyrics/` otherwise.
 pub fn cache_dir() -> Option<PathBuf> {
     crate::lyrics::cache::default_dir()
 }

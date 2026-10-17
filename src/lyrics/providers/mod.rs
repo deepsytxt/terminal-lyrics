@@ -117,7 +117,7 @@ pub(crate) fn decode_json<T: DeserializeOwned>(body: &[u8]) -> Result<T> {
 
 /// Sorted by key, everything but `A-Za-z0-9-_.~` percent-encoded, and a space
 /// as `%20` rather than `+`: KuGou's search finds nothing for `a - b` when the
-/// spaces arrive as `+`. Byte for byte what DMS sends.
+/// spaces arrive as `+`.
 pub(crate) fn encode_query(query: &[(String, String)]) -> String {
     let mut pairs: Vec<&(String, String)> = query.iter().collect();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));

@@ -1,5 +1,5 @@
-//! TTML, read the way DankMaterialShell reads it, and shown the way the
-//! display shows it.
+//! TTML, read into the provider model, and shown the way the display shows
+//! it.
 
 use terminal_lyrics::lrc;
 use terminal_lyrics::lyrics::display;
@@ -159,7 +159,7 @@ fn two_voices_overlapping_for_seconds_are_both_kept() {
 
 #[test]
 fn an_unreadable_time_anywhere_fails_the_document() {
-    // DMS refuses the whole document rather than guessing, so the next
+    // The whole document is refused rather than guessed at, so the next
     // provider gets its turn instead of a song with a hole in it.
     let xml = r#"<tt xmlns="http://www.w3.org/ns/ttml"
       xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>

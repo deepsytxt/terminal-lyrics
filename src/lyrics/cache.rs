@@ -1,10 +1,9 @@
 //! The disk cache: one JSON file per track per provider, hits and misses both.
 //!
-//! The layout, the keys and the file contents are DankMaterialShell's, to the
-//! byte, so the two programs can share one directory: whatever either of them
-//! looked up, the other reads instead of asking again, and both show the same
-//! lyrics for the same song. [`default_dir`] picks DMS's directory when it
-//! exists.
+//! The layout, the keys and the file contents are a fixed format, to the byte,
+//! so the directory can be shared with another reader of it: whatever either
+//! side looked up, the other reads instead of asking again. [`default_dir`]
+//! picks the shared directory when it exists.
 //!
 //! A miss is kept for 14 days. A line-synced hit older than 14 days is asked
 //! for again once, and replaced only if word sync came back. Anything older
@@ -19,7 +18,7 @@ use sha2::{Digest, Sha256};
 use super::Provider;
 use super::model::{Lyrics, Request, go_lower};
 
-/// DMS's `cacheVersion`. A different number is a different cache.
+/// Part of every key. A different number is a different cache.
 pub const CACHE_VERSION: u32 = 4;
 const NEGATIVE_TTL: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const UPGRADE_TTL: Duration = Duration::from_secs(14 * 24 * 60 * 60);
@@ -69,7 +68,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// The track's key: the same for every provider, and for DMS.
+/// The track's key: the same for every provider.
 pub fn track_key(req: &Request) -> String {
     let text = format!(
         "lyrics/v{CACHE_VERSION}\n{}\n{}\n{}\n{}",
@@ -82,7 +81,7 @@ pub fn track_key(req: &Request) -> String {
 }
 
 /// One provider's answer for the track. LRCLIB's is the bare track key, which
-/// is where DMS's cache started.
+/// is where the format started.
 pub fn provider_key(provider: Provider, req: &Request) -> String {
     let key = track_key(req);
     if provider == Provider::LrcLib {
@@ -93,12 +92,12 @@ pub fn provider_key(provider: Provider, req: &Request) -> String {
     ))
 }
 
-/// DankMaterialShell's lyrics cache, when DMS is installed; otherwise our own.
+/// The shared lyrics cache, when its directory exists; otherwise our own.
 pub fn default_dir() -> Option<PathBuf> {
     let base = directories::BaseDirs::new()?;
-    let dms = base.cache_dir().join("DankMaterialShell");
-    if dms.is_dir() {
-        return Some(dms.join("lyrics"));
+    let shared = base.cache_dir().join("DankMaterialShell");
+    if shared.is_dir() {
+        return Some(shared.join("lyrics"));
     }
     directories::ProjectDirs::from("", "", "terminal-lyrics").map(|d| d.cache_dir().join("lyrics"))
 }
@@ -167,7 +166,7 @@ impl Cache {
     }
 
     /// Remove entries older than 90 days, in the background, at most once a
-    /// day — whichever of us or DMS gets there first.
+    /// day — whichever reader of the directory gets there first.
     pub fn prune(&self) {
         let Some(root) = self.dir.clone() else { return };
         let sentinel = root.join(PRUNE_SENTINEL);
@@ -235,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn reads_what_dms_writes() {
+    fn reads_the_shared_format() {
         let doc = r#"{"v":4,"fetched":1760000000,"source":"betterlyrics","synced":[{"t":31.4,"e":35.2,"x":"Like the legend","w":[{"t":31.4,"e":31.9,"x":"Like "},{"t":31.9,"x":"the legend"}],"voice":"v1"}],"plain":"Like the legend","instrumental":false,"voices":{"v1":{"name":"Lead","type":"person"}}}"#;
         let entry: Entry = serde_json::from_str(doc).unwrap();
         assert_eq!(entry.source, "betterlyrics");

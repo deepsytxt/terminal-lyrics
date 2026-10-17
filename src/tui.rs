@@ -427,8 +427,7 @@ fn status_line(app: &App) -> Option<String> {
 /// Kick off a lookup for a newly loaded track.
 ///
 /// Whatever is already known — a file next to the track, a cached answer — is
-/// shown at once, and the full lookup still runs behind it, the way DMS does
-/// it: a provider ahead of the cached one may have an answer by now, and the
+/// shown at once, and the full lookup still runs behind it: a provider ahead of the cached one may have an answer by now, and the
 /// race is what decides.
 fn start_lookup(
     app: &mut App,

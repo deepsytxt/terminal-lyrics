@@ -5,11 +5,9 @@ whatever the local music player is playing. Crate `terminal-lyrics`, binary
 `lyrics`, Rust 2024 edition. Repo: https://github.com/mgtaco/terminal-lyrics
 (`origin`, branch `main`). MIT.
 
-The lyrics lookup in `src/lyrics/` is a port of DankMaterialShell's Go library
-(`github.com/AvengeMedia/dankgo/lyrics`), so that `lyrics` and the DMS widget
-pick the same lyrics: six providers (BetterLyrics, Unison, LyricsPlus, KuGou,
-LRCLIB, YouTube Music) raced at once, with `--lrc-dir` and a sidecar file next
-to a local track ahead of them, and a cache shared with DMS. The player is
+The lyrics lookup in `src/lyrics/` races six providers (BetterLyrics, Unison,
+LyricsPlus, KuGou, LRCLIB, YouTube Music) at once, with `--lrc-dir` and a
+sidecar file next to a local track ahead of them, then the cache. The player is
 reached through one seam in `src/player/`, with exactly one backend compiled per
 target: MPRIS over D-Bus on Linux, osascript against Spotify and Apple Music on
 macOS, a stub on Windows, and a scripted fake for tests.
@@ -19,15 +17,11 @@ provider ordering and matching in full.
 
 ## Design rules worth keeping
 
-- The lookup's job is to agree with DMS, so `src/lyrics/{model,engine,cache,
-  sidecar,format,providers}` follow dankgo's behaviour, request shape and
-  cache format exactly; a "better" rule added only here makes the two pick
-  different lyrics. Change those by porting the change from dankgo. The DMS
-  request uses all artists joined with ", " and the length rounded to seconds,
-  which is why MPRIS artists are joined that way.
-- The cache format is DMS's on-disk format (`lyrics/v4` keys, one JSON entry per
-  provider per track), written atomically, because the two programs read and
-  write the same directory when `~/.cache/DankMaterialShell` exists.
+- `src/lyrics/` is a port of DankMaterialShell's `dankgo/lyrics` (MIT, notice
+  in `licenses/`) and shares its cache when `~/.cache/DankMaterialShell`
+  exists. Keep the lookup, request shape (artists joined with ", ", length
+  rounded to seconds) and `lyrics/v4` cache format in step with upstream, but
+  do not name it in user-facing docs or code comments.
 - Everything past the lookup consumes enhanced LRC: `display::to_lrc` turns the
   provider model into the `[bg:]`/word-tag form `crate::lrc` parses, so the
   duet, background and sweep logic is shared by every source.
