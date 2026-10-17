@@ -23,9 +23,8 @@ offset_ms = 0
 # Set false to use only the cache and lrc_dir — no network lookups at all.
 network = true
 
-# Which lyrics sources to consult. The lookup is DankMaterialShell's, so with
-# the default list both pick the same lyrics for a song. Dropping a name turns
-# that provider off; an unknown name is an error, not a silent skip.
+# Which lyrics sources to consult. Dropping a name turns that provider off;
+# an unknown name is an error, not a silent skip.
 #
 #   betterlyrics  Apple Music's TTML, syllable-timed
 #   unison        BetterLyrics' community lyrics, TTML or enhanced LRC
@@ -38,8 +37,7 @@ network = true
 # order here breaks ties between answers that are equally good. A provider
 # that is down is stepped over rather than failing the lookup.
 #
-# The cache is shared with DankMaterialShell when ~/.cache/DankMaterialShell
-# exists; `lyrics paths` prints where it is.
+# `lyrics paths` prints where the cache is.
 providers = ["betterlyrics", "unison", "lyricsplus", "kugou", "lrclib", "youtubemusic"]
 
 # Show one word at a time when the lyrics carry real per-word timings.

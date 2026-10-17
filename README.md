@@ -137,7 +137,7 @@ The flags worth knowing:
 ```bash
 lyrics status                 # player, track, position, and which source matched
 lyrics fetch --artist "Radiohead" --title "Creep" --duration 238
-lyrics fetch --artist "Daft Punk" --title "Get Lucky" --json   # what DMS caches
+lyrics fetch --artist "Daft Punk" --title "Get Lucky" --json   # the full answer, as JSON
 lyrics paths                  # where the config, cache and saved offsets live
 ```
 
@@ -201,14 +201,6 @@ Linux that read costs no subprocess at all; on macOS it is one short-lived
 despite AppleScript having no seek notification to offer.
 
 ### Sources
-
-The lookup is DankMaterialShell's, ported line for line from its Go library
-([dankgo/lyrics](https://github.com/AvengeMedia/dankgo)), so that `lyrics` and
-the DMS lyrics widget pick the same lyrics for the same song and stay in step
-when both are on screen. They also share one cache: when
-`~/.cache/DankMaterialShell` exists, lyrics are cached in its `lyrics/`
-directory, in the same files and the same format, so whichever of the two looks
-a song up first answers for the other.
 
 Ahead of the network sit your own `--lrc-dir` files and, for a local file the
 player hands over as a `file://` URL, a lyrics file next to it: `song.lyricsfile.yaml`,
@@ -347,8 +339,6 @@ lyrics work there as well.
 * Most of the sources are community-run services, and some are unofficial APIs
   that can change without notice. The lookup steps over one that is down rather
   than failing, but a permanent disappearance would cost real coverage.
-* The lookup follows DankMaterialShell's, so a better match DMS would not pick is
-  not picked here either. That is the price of the two agreeing.
 * Anything held by none of the six will not be found, and pressing `r` will not
   conjure it into existence.
 * On Linux, only MPRIS players are visible, so anything that does not expose an
@@ -367,12 +357,10 @@ tacoproz1. This is a separate program written from scratch in Rust rather than a
 fork of that one, and it takes a different approach, with no music library to
 scan and no pre-processing pass.
 
-The lyrics lookup is a port of DankMaterialShell's
-([dankgo/lyrics](https://github.com/AvengeMedia/dankgo), © Avenge Media LLC, MIT,
-see [licenses/dankgo-MIT.txt](licenses/dankgo-MIT.txt)), so that the two agree. Lyrics come from BetterLyrics and Unison,
+Lyrics come from BetterLyrics and Unison,
 [LyricsPlus](https://github.com/ibratabian17/lyricsplus), KuGou,
 [LRCLIB](https://lrclib.net) and YouTube Music. None of them is affiliated with
-this project.
+this project. Third-party licences are in [licenses/](licenses/).
 
 The platform marks in `docs/icons/` are based on
 [Simple Icons](https://simpleicons.org) (CC0).

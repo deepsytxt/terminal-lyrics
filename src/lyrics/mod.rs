@@ -194,9 +194,7 @@ impl std::str::FromStr for Provider {
         // in a config file, and an ignored one would look like the provider
         // was simply never reached.
         let why = match want.as_str() {
-            "amll" | "lrcmux" => {
-                " (removed when the lookup switched to DankMaterialShell's providers)"
-            }
+            "amll" | "lrcmux" => " (removed in 0.3.0)",
             _ => "",
         };
         Err(format!(

@@ -103,8 +103,7 @@ pub enum Command {
         /// Track length in seconds; greatly improves match accuracy.
         #[arg(long)]
         duration: Option<f64>,
-        /// Print the provider's answer as JSON, in the shape DankMaterialShell
-        /// caches it, instead of LRC.
+        /// Print the provider's answer as JSON instead of LRC.
         #[arg(long)]
         json: bool,
     },
