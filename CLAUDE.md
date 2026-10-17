@@ -50,6 +50,7 @@ provider ordering and matching in full.
 cargo test                              # 189 tests, no terminal or player needed
 cargo clippy --all-targets -- -D warnings
 cargo run --example pump_dump -- 15     # dump the live player event stream
+cargo run --example demo_gif            # re-render the README demo GIFs
 lyrics status                           # what it sees: player, track, source
 ```
 

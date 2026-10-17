@@ -48,6 +48,8 @@ yaml-rust2 = "0.13.0"
 # `tests/` needs a runtime, so this is the smallest one that will do.
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt", "macros"] }
+# Only for `examples/demo_gif.rs`, which renders the README demo.
+gif = "0.13.3"
 
 # The player backend is chosen at compile time; see src/player/mod.rs. Gating the
 # dependency here is what lets a Linux package build without ever fetching the
