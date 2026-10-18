@@ -9,12 +9,14 @@
 use std::time::{Duration, Instant};
 
 use crate::clock::SyncClock;
+use crate::lyrics::lookup_key;
 use crate::player::{PlayerEvent, Track};
 
 /// What the caller needs to react to, above just redrawing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
-    /// A different track is loaded; the caller should fetch lyrics.
+    /// A different track is loaded, or the same one with different details
+    /// to look it up by; the caller should fetch lyrics.
     Track(Option<Box<Track>>),
     /// The position moved somewhere unpredicted.
     Resynced,
@@ -66,9 +68,12 @@ impl SyncEngine {
                 let next = next.map(|b| *b);
                 // MPRIS players re-emit metadata for all sorts of reasons
                 // (art loaded, rating changed). Only a real identity change
-                // should throw away the lyrics we already have.
+                // should throw away the lyrics we already have — or a change
+                // to what the lookup asks for: Spotify announces the new
+                // title with the last track's length still attached, and the
+                // real one follows under the same id.
                 let same = match (&self.track, &next) {
-                    (Some(a), Some(b)) => a.id == b.id,
+                    (Some(a), Some(b)) => a.id == b.id && lookup_key(a) == lookup_key(b),
                     (None, None) => true,
                     _ => false,
                 };

@@ -233,6 +233,12 @@ pub fn request_for(track: &Track, network: bool) -> Request {
     }
 }
 
+/// What the lookup for this track is keyed on. Two tracks with the same key
+/// get the same lyrics; a track whose key changes needs looking up again.
+pub fn lookup_key(track: &Track) -> String {
+    cache::track_key(&request_for(track, false))
+}
+
 /// An answer as something to show, or `Missing` when there is nothing timed.
 pub fn outcome_from(answer: Answer) -> Outcome {
     if !answer.found {

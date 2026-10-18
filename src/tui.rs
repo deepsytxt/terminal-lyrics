@@ -62,6 +62,9 @@ fn ready_from(found: crate::lyrics::Found) -> LyricState {
 /// result for a previous song cannot overwrite the current one.
 struct FetchResult {
     track_id: String,
+    /// What was asked, so an answer for a description of the track that has
+    /// since been corrected is not shown over the corrected one.
+    key: String,
     outcome: Result<Outcome>,
 }
 
@@ -501,6 +504,7 @@ fn start_lookup(
             .map_err(anyhow::Error::from);
         let _ = tx.send(FetchResult {
             track_id: track.id.clone(),
+            key: crate::lyrics::lookup_key(&track),
             outcome,
         });
     });
@@ -508,8 +512,11 @@ fn start_lookup(
 
 fn apply_fetch(app: &mut App, result: FetchResult) {
     // Ignore an answer for a track we have already moved on from.
-    let current = app.engine.track().map(|t| t.id.clone());
-    if current.as_deref() != Some(result.track_id.as_str()) {
+    let current = app
+        .engine
+        .track()
+        .map(|t| (t.id.clone(), crate::lyrics::lookup_key(t)));
+    if current != Some((result.track_id, result.key)) {
         return;
     }
     let showing = matches!(app.state, LyricState::Ready { .. });

@@ -165,6 +165,30 @@ fn repeated_metadata_for_the_same_track_does_not_trigger_a_refetch() {
 }
 
 #[test]
+fn a_length_that_arrives_late_triggers_a_second_lookup() {
+    // Spotify sends the new title with the last track's length, then the
+    // real length under the same id. The first lookup asked for the wrong
+    // length, which is enough for a provider to reject the match.
+    let t0 = Instant::now();
+    let mut e = engine(t0);
+    let mut stale = track("id-1");
+    stale.length = Some(271.0);
+    assert!(matches!(
+        e.apply(PlayerEvent::Track(Some(stale)), t0),
+        Change::Track(_)
+    ));
+    let mut settled = track("id-1");
+    settled.length = Some(199.0);
+    assert!(matches!(
+        e.apply(PlayerEvent::Track(Some(settled.clone())), t0),
+        Change::Track(_)
+    ));
+    // Sub-second jitter rounds to the same request.
+    settled.length = Some(199.2);
+    assert_eq!(e.apply(PlayerEvent::Track(Some(settled)), t0), Change::None);
+}
+
+#[test]
 fn a_scripted_session_ends_where_the_arithmetic_says_it_should() {
     let t0 = Instant::now();
     let mut player = FakePlayer::new(
