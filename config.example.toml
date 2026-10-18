@@ -9,7 +9,12 @@
 
 # "block" (5 rows), "compact" (3 rows) or "mini" (plain text).
 # The visualiser steps down automatically when the terminal is too small.
+# A line with an accent on a capital, or a descender, gains a row or two.
 font = "block"
+
+# "upper" (all capitals), "lower", or "original" to draw the lyrics exactly as
+# they are written. `c` cycles through them while it runs.
+case = "upper"
 
 # Where a song starts before you nudge it, in milliseconds; positive shows the
 # lyrics later. Nudging with `,` and `.` saves that song's own offset, which is

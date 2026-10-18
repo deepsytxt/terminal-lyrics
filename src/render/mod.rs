@@ -3,14 +3,18 @@
 //! Everything here is pure: state in, a ratatui `Text` out. The terminal is
 //! only touched by `tui.rs`, so the layout can be unit-tested.
 
+pub mod case;
 pub mod font;
 pub mod layout;
+
+pub use self::case::Case;
 
 use ratatui::style::{Color, Modifier, Style};
 // `Theme`'s fields are `Color`, so callers outside the crate need the type to
 // say anything about them.
 pub use ratatui::style::Color as ThemeColor;
 use ratatui::text::{Line, Span, Text};
+use unicode_width::UnicodeWidthStr;
 
 use self::font::Font;
 use self::layout::Layout;
@@ -140,20 +144,13 @@ pub fn render(
                         reveal: s.reveal,
                     },
                 };
-                rows.extend(block_rows(
-                    &s.fitted.layout,
-                    &s.fitted.font,
-                    style,
-                    width,
-                    theme,
-                ));
+                rows.extend(block_rows(&s.fitted.layout, style, width, theme));
                 if !main.layout.is_empty() {
                     rows.extend(std::iter::repeat_n(Line::default(), VOICE_GAP));
                 }
             }
             rows.extend(block_rows(
                 &main.layout,
-                &main.font,
                 RowStyle::Sweep {
                     highlight: *highlight,
                     reveal: *reveal,
@@ -161,7 +158,20 @@ pub fn render(
                 width,
                 theme,
             ));
-            vertically_centre(rows, height)
+            // The rows an accent or a descender added, at the very top and the
+            // very bottom: centring ignores them, so the capitals stay put as
+            // one word with a descender follows one without.
+            let first = second
+                .as_ref()
+                .and_then(|s| s.fitted.layout.lines.first())
+                .or(main.layout.lines.first());
+            let last = main
+                .layout
+                .lines
+                .last()
+                .or(second.as_ref().and_then(|s| s.fitted.layout.lines.last()));
+            let overhang = (first.map_or(0, |l| l.above), last.map_or(0, |l| l.below));
+            vertically_centre(rows, height, overhang)
         }
         Screen::Searching { label } => {
             status_text(label, "searching for lyrics", width, height, theme)
@@ -249,13 +259,7 @@ fn fit_voices(
 
 /// Rows of glyph art for one voice, centred horizontally but not vertically —
 /// the two voices are centred together, as one block.
-fn block_rows(
-    layout: &Layout,
-    font: &Font,
-    style: RowStyle,
-    width: usize,
-    theme: Theme,
-) -> Vec<Line<'static>> {
+fn block_rows(layout: &Layout, style: RowStyle, width: usize, theme: Theme) -> Vec<Line<'static>> {
     let mut rows: Vec<Line<'static>> = Vec::new();
 
     for (i, vline) in layout.lines.iter().enumerate() {
@@ -265,14 +269,14 @@ fn block_rows(
             }
         }
         let pad = width.saturating_sub(vline.width) / 2;
-        for row in 0..font.height {
+        for row in 0..vline.height {
             let mut spans: Vec<Span<'static>> = Vec::new();
             if pad > 0 {
                 spans.push(Span::raw(" ".repeat(pad)));
             }
             for (j, cell) in vline.cells.iter().enumerate() {
-                if j > 0 && font.tracking() > 0 {
-                    spans.push(Span::raw(" ".repeat(font.tracking())));
+                if j > 0 && layout.tracking > 0 {
+                    spans.push(Span::raw(" ".repeat(layout.tracking)));
                 }
                 let art = cell.rows.get(row).cloned().unwrap_or_default();
                 let (reached, style) = match style {
@@ -300,10 +304,10 @@ fn block_rows(
     rows
 }
 
-/// Glyph rows can be shorter than the glyph's nominal width (trailing spaces
-/// trimmed in the tables); pad so columns stay aligned.
+/// A plain character can be narrower than the cell holding it; pad so columns
+/// stay aligned.
 fn pad_to(s: &str, width: usize) -> String {
-    let len = s.chars().count();
+    let len = s.width();
     if len >= width {
         s.to_string()
     } else {
@@ -324,7 +328,7 @@ fn status_text(
         rows.push(Line::default());
     }
     rows.push(centred(message, width, Style::default().fg(theme.dim)));
-    vertically_centre(rows, height)
+    vertically_centre(rows, height, (0, 0))
 }
 
 fn centred(text: &str, width: usize, style: Style) -> Line<'static> {
@@ -336,11 +340,21 @@ fn centred(text: &str, width: usize, style: Style) -> Line<'static> {
     ])
 }
 
-fn vertically_centre(rows: Vec<Line<'static>>, height: usize) -> Text<'static> {
+/// Centre `rows` in `height`, as if the `overhang` rows at the top and the
+/// bottom were not there — but never so far that they leave the screen.
+fn vertically_centre(
+    rows: Vec<Line<'static>>,
+    height: usize,
+    overhang: (usize, usize),
+) -> Text<'static> {
     if rows.len() >= height {
         return Text::from(rows);
     }
-    let pad = (height - rows.len()) / 2;
+    let (above, below) = overhang;
+    let core = rows.len().saturating_sub(above + below);
+    let pad = ((height - core) / 2)
+        .saturating_sub(above)
+        .min(height - rows.len());
     let mut out: Vec<Line<'static>> = Vec::with_capacity(height);
     out.extend(std::iter::repeat_n(Line::default(), pad));
     out.extend(rows);

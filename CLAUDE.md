@@ -44,16 +44,24 @@ provider ordering and matching in full.
   correction, and a cache is by definition safe to delete. Only tuned tracks get
   an entry: `config.offset_ms` is the starting point for the rest, and a song
   reset to it is deleted rather than stored.
+- Glyph art lives in `src/render/fonts/*.font` as `#`/`.` bitmaps, packed into
+  half blocks only after a line is wrapped. Accented letters are never drawn
+  there: Unicode decomposition gives base + marks, and the marks are stamped
+  on. `tests/font_glyphs.rs` fails if two characters come out alike.
+- Case is applied before layout and maps one char to one char (a `ß` whose
+  capital would be `SS` keeps itself); the sweep's offsets count chars, so
+  anything that changed the count would shift every highlight after it.
 - Tests must never shell out to `osascript` — it would prompt for Automation
   access. Keep macOS decisions in `parse_probe`.
 
 ## Working on it
 
 ```bash
-cargo test                              # 193 tests, no terminal or player needed
+cargo test                              # 213 tests, no terminal or player needed
 cargo clippy --all-targets -- -D warnings
 cargo run --example pump_dump -- 15     # dump the live player event stream
 cargo run --example demo_gif            # re-render the README demo GIFs
+cargo run --example font_sheet          # print every glyph, to check font art
 lyrics status                           # what it sees: player, track, source
 ```
 

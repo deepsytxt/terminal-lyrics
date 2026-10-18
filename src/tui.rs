@@ -400,6 +400,10 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
                             }
                         }
                     }
+                    // Recased here rather than in the renderer: the mapping is
+                    // one character for one, so the offsets above still hold.
+                    line_text = app.cfg.case.apply(&line_text).into_owned();
+                    second_text = app.cfg.case.apply(&second_text).into_owned();
                     Screen::Lyric {
                         text: &line_text,
                         highlight,
@@ -587,6 +591,10 @@ async fn handle_key(
             app.font = font::by_name(next).unwrap_or_else(font::block);
             app.cfg.font = next.to_string();
             app.note(format!("font: {next}"));
+        }
+        KeyCode::Char('c') => {
+            app.cfg.case = app.cfg.case.next();
+            app.note(format!("case: {}", app.cfg.case.label()));
         }
         KeyCode::Char('s') => {
             app.cfg.sweep = app.cfg.sweep.next();

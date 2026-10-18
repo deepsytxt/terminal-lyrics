@@ -35,7 +35,7 @@ fn a_short_line_stays_on_one_row_of_glyphs() {
     let f = font::block();
     let l = layout("HI", &f, 100);
     assert_eq!(l.lines.len(), 1);
-    assert_eq!(l.height, 5);
+    assert_eq!(l.lines[0].height, 5);
     assert_no_loss("HI", &l);
 }
 
@@ -530,4 +530,34 @@ fn the_font_helper_steps_down_monotonically() {
     assert_eq!(font::smaller_than("compact").map(|f| f.name), Some("mini"));
     assert_eq!(font::smaller_than("mini").map(|f| f.name), None);
     assert_eq!(font::next_after("mini"), "block");
+}
+
+#[test]
+fn the_capitals_stay_put_when_a_word_brings_an_accent_or_a_descender() {
+    // Word by word, "Hey" follows "HEY" follows "HÉY". The rows an accent or
+    // a descender adds must not push the letters themselves up or down, or
+    // every word would bob.
+    let f = font::block();
+    let cap_row = |text: &str| {
+        let out = render(
+            &Screen::Lyric {
+                text,
+                highlight: 0,
+                reveal: text.chars().count(),
+                second: None,
+            },
+            &f,
+            80,
+            24,
+            Theme::default(),
+        );
+        // H's top-left corner is the first full block in its column.
+        out.lines
+            .iter()
+            .position(|l| row_text(l).trim_start().starts_with('█'))
+            .expect("H is drawn")
+    };
+    let plain = cap_row("HEY");
+    assert_eq!(cap_row("Hey"), plain, "a descender moved the capitals");
+    assert_eq!(cap_row("HÉY"), plain, "an accent moved the capitals");
 }

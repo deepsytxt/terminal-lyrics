@@ -11,6 +11,7 @@ use clap::Parser;
 use terminal_lyrics::cli::Cli;
 use terminal_lyrics::config::{ColorSource, Config, ConfigFile, Sweep};
 use terminal_lyrics::lyrics::Provider;
+use terminal_lyrics::render::Case;
 
 fn from_args(args: &[&str]) -> Cli {
     let mut full = vec!["lyrics"];
@@ -26,6 +27,7 @@ fn resolve(file_toml: &str, args: &[&str]) -> Config {
 const FULL_FILE: &str = r#"
 player = "file-player"
 font = "file-font"
+case = "original"
 offset_ms = 111
 lrc_dir = "/file/lrc"
 network = false
@@ -43,6 +45,7 @@ fn defaults_apply_with_no_file_and_no_flags() {
     let cfg = resolve("", &[]);
     assert_eq!(cfg, Config::default());
     assert_eq!(cfg.font, "block");
+    assert_eq!(cfg.case, Case::Upper, "capitals, as it has always looked");
     assert_eq!(cfg.offset_ms, 0);
     assert!(cfg.network);
     assert_eq!(cfg.sweep, Sweep::Never, "the highlight is opt-in");
@@ -72,6 +75,7 @@ fn file_overrides_every_default() {
     let d = Config::default();
     assert_eq!(cfg.player.as_deref(), Some("file-player"));
     assert_eq!(cfg.font, "file-font");
+    assert_eq!(cfg.case, Case::Original);
     assert_eq!(cfg.offset_ms, 111);
     assert_eq!(cfg.lrc_dir, Some(PathBuf::from("/file/lrc")));
     assert!(!cfg.network);
@@ -84,6 +88,7 @@ fn file_overrides_every_default() {
     assert_eq!(cfg.providers, vec![Provider::KuGou, Provider::LrcLib]);
     // Nothing above silently matched the default and passed by luck.
     assert_ne!(cfg.font, d.font);
+    assert_ne!(cfg.case, d.case);
     assert_ne!(cfg.tick_ms, d.tick_ms);
     assert_ne!(cfg.sweep, d.sweep);
     assert_ne!(cfg.color_source, d.color_source);
@@ -170,6 +175,13 @@ fn flag_beats_file_for_player() {
 fn flag_beats_file_for_font() {
     let cfg = resolve(FULL_FILE, &["--font", "flag-font"]);
     assert_eq!(cfg.font, "flag-font");
+}
+
+#[test]
+fn flag_beats_file_for_case() {
+    assert_eq!(resolve(FULL_FILE, &["--case", "lower"]).case, Case::Lower);
+    assert!(Cli::try_parse_from(["lyrics", "--case", "title"]).is_err());
+    assert!(ConfigFile::parse("case = \"title\"").is_err());
 }
 
 #[test]

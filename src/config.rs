@@ -13,6 +13,7 @@ use serde::Deserialize;
 
 use crate::cli::Cli;
 use crate::lyrics::Provider;
+use crate::render::Case;
 
 /// Where the accent colour comes from.
 ///
@@ -179,6 +180,9 @@ impl Sweep {
 pub struct Config {
     pub player: Option<String>,
     pub font: String,
+    /// Upper, lower, or as written. Applied before layout, one character for
+    /// one, so the sweep's offsets still line up.
+    pub case: Case,
     /// Where a track that has never been nudged starts. A track the user has
     /// corrected with `,` / `.` keeps its own offset instead; see
     /// [`crate::offsets`].
@@ -210,6 +214,7 @@ impl Default for Config {
         Self {
             player: None,
             font: "block".to_string(),
+            case: Case::Upper,
             offset_ms: 0,
             lrc_dir: None,
             network: true,
@@ -230,6 +235,7 @@ impl Default for Config {
 pub struct ConfigFile {
     pub player: Option<String>,
     pub font: Option<String>,
+    pub case: Option<Case>,
     pub offset_ms: Option<i64>,
     pub lrc_dir: Option<PathBuf>,
     pub network: Option<bool>,
@@ -272,6 +278,7 @@ impl Config {
         Config {
             player: cli.player.clone().or(file.player).or(d.player),
             font: cli.font.clone().or(file.font).unwrap_or(d.font),
+            case: cli.case.or(file.case).unwrap_or(d.case),
             offset_ms: cli.offset_ms.or(file.offset_ms).unwrap_or(d.offset_ms),
             lrc_dir: cli.lrc_dir.clone().or(file.lrc_dir).or(d.lrc_dir),
             // `--no-network` is a flag, so its absence means "defer to the file".

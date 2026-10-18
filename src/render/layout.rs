@@ -4,16 +4,22 @@
 //! end of every long line. Here the glyph run is wrapped at word boundaries,
 //! and if a single word is still too wide the font steps down before anything
 //! is discarded. Nothing is ever truncated.
+//!
+//! Glyphs are pixel bitmaps until a line is wrapped; only then is each line
+//! packed into half blocks, two pixel rows to a terminal row. A line is exactly
+//! as tall as its ink: the capitals' rows always, plus a row or two above for
+//! an accent on a capital and below for a descender, only when it has one.
 
-use super::font::Font;
+use super::font::{Font, Glyph};
 
-/// One rendered character: `height` rows of art plus where it came from in the
-/// source line, which is what lets the sweep highlight partial words.
+/// One rendered character: rows of art plus where it came from in the source
+/// line, which is what lets the sweep highlight partial words.
 #[derive(Debug, Clone)]
 pub struct Cell {
     pub rows: Vec<String>,
     pub width: usize,
-    /// Index of this character within the source line.
+    /// Index of this character within the source line. A combining mark
+    /// drawn onto the letter before it shares that letter's cell and index.
     pub src: usize,
 }
 
@@ -22,13 +28,20 @@ pub struct Cell {
 pub struct VisualLine {
     pub cells: Vec<Cell>,
     pub width: usize,
+    /// Rows on screen, including any above the capitals or below the baseline.
+    pub height: usize,
+    /// Rows above the cap line: room an accent on a capital needed.
+    pub above: usize,
+    /// Rows below the baseline: room a descender needed.
+    pub below: usize,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Layout {
     pub lines: Vec<VisualLine>,
-    pub height: usize,
     pub width: usize,
+    /// Blank columns between neighbouring cells.
+    pub tracking: usize,
 }
 
 impl Layout {
@@ -36,116 +49,263 @@ impl Layout {
         self.lines.iter().all(|l| l.cells.is_empty())
     }
 
-    /// Total rows on screen, including the blank row between wrapped lines.
+    /// Total rows on screen, including the blank rows between wrapped lines.
     pub fn rows(&self, gap: usize) -> usize {
-        if self.lines.is_empty() {
-            return 0;
-        }
-        self.lines.len() * self.height + gap * self.lines.len().saturating_sub(1)
+        let art: usize = self.lines.iter().map(|l| l.height).sum();
+        art + gap * self.lines.len().saturating_sub(1)
     }
 }
 
-fn cell_for(font: &Font, c: char, src: usize) -> Cell {
-    Cell {
-        rows: font.glyph(c),
-        width: font.width_of(c),
-        src,
+/// A character drawn but not yet wrapped or packed into rows.
+struct Piece {
+    glyph: Glyph,
+    src: usize,
+    /// Whitespace in the source, where a line may break.
+    space: bool,
+}
+
+impl Piece {
+    fn width(&self) -> usize {
+        self.glyph.width()
     }
+}
+
+/// Characters of `text` with the combining marks that follow each folded into
+/// it, so a lyric in decomposed form draws the same as a precomposed one.
+fn pieces(text: &str, font: &Font) -> Vec<Piece> {
+    let mut clusters: Vec<(usize, char, Vec<char>)> = Vec::new();
+    for (i, c) in text.chars().enumerate() {
+        match clusters.last_mut() {
+            Some((_, base, marks)) if super::font::is_mark(c) && !base.is_whitespace() => {
+                marks.push(c)
+            }
+            _ => clusters.push((i, c, Vec::new())),
+        }
+    }
+    clusters
+        .into_iter()
+        .map(|(src, c, marks)| Piece {
+            glyph: font.draw(c, &marks),
+            src,
+            space: c.is_whitespace(),
+        })
+        .collect()
 }
 
 /// Wrap `text` to `max_width` columns using `font`.
 ///
 /// Breaks between words where possible. A word wider than the whole terminal is
 /// broken mid-word rather than clipped — ugly, but it keeps every character.
+///
+/// A line written mostly in letters the font cannot draw — Japanese, Cyrillic
+/// — is laid out in `mini` instead, so the script is readable and at one size,
+/// rather than a run of tiny characters adrift among the block capitals. A
+/// stray one in a Latin line is drawn as plain text in place.
 pub fn layout(text: &str, font: &Font, max_width: usize) -> Layout {
+    if !font.is_plain() {
+        let letters = text
+            .chars()
+            .filter(|c| c.is_alphabetic() && !super::font::is_mark(*c));
+        let (all, foreign) = letters.fold((0, 0), |(all, foreign), c| {
+            (all + 1, foreign + usize::from(!font.can_draw(c)))
+        });
+        if foreign > 0 && foreign * 2 >= all {
+            return layout(text, &super::font::mini(), max_width);
+        }
+    }
+
     let max_width = max_width.max(1);
     let tracking = font.tracking();
 
-    let mut lines: Vec<VisualLine> = Vec::new();
-    let mut current = VisualLine::default();
-    // Cells of the word being built, so it can move to the next line whole.
-    let mut word: Vec<Cell> = Vec::new();
+    let mut lines: Vec<Vec<Piece>> = Vec::new();
+    let mut current: Vec<Piece> = Vec::new();
+    let mut current_width = 0usize;
+    // Pieces of the word being built, so it can move to the next line whole.
+    let mut word: Vec<Piece> = Vec::new();
     let mut word_width = 0usize;
 
-    let flush_word = |current: &mut VisualLine,
-                      lines: &mut Vec<VisualLine>,
-                      word: &mut Vec<Cell>,
+    let flush_word = |current: &mut Vec<Piece>,
+                      current_width: &mut usize,
+                      lines: &mut Vec<Vec<Piece>>,
+                      word: &mut Vec<Piece>,
                       word_width: &mut usize| {
         if word.is_empty() {
             return;
         }
-        let advance = if current.cells.is_empty() {
+        let advance = if current.is_empty() {
             *word_width
         } else {
             *word_width + tracking
         };
-        if !current.cells.is_empty() && current.width + advance > max_width {
+        if !current.is_empty() && *current_width + advance > max_width {
             lines.push(std::mem::take(current));
+            *current_width = 0;
         }
-        for cell in word.drain(..) {
-            let step = if current.cells.is_empty() {
-                cell.width
+        for piece in word.drain(..) {
+            let step = if current.is_empty() {
+                piece.width()
             } else {
-                cell.width + tracking
+                piece.width() + tracking
             };
             // A single word longer than the line: break it rather than lose it.
-            if !current.cells.is_empty() && current.width + step > max_width {
+            if !current.is_empty() && *current_width + step > max_width {
                 lines.push(std::mem::take(current));
-                current.width = cell.width;
+                *current_width = piece.width();
             } else {
-                current.width += step;
+                *current_width += step;
             }
-            current.cells.push(cell);
+            current.push(piece);
         }
         *word_width = 0;
     };
 
-    for (i, c) in text.chars().enumerate() {
-        if c.is_whitespace() {
-            flush_word(&mut current, &mut lines, &mut word, &mut word_width);
+    for piece in pieces(text, font) {
+        if piece.space {
+            flush_word(
+                &mut current,
+                &mut current_width,
+                &mut lines,
+                &mut word,
+                &mut word_width,
+            );
             // The space itself is a cell, so highlight offsets stay aligned
             // with the source text — but never at the start of a wrapped line.
-            if !current.cells.is_empty() {
-                let cell = cell_for(font, ' ', i);
-                let step = cell.width + tracking;
-                if current.width + step <= max_width {
-                    current.width += step;
-                    current.cells.push(cell);
+            if !current.is_empty() {
+                let step = piece.width() + tracking;
+                if current_width + step <= max_width {
+                    current_width += step;
+                    current.push(piece);
                 }
             }
             continue;
         }
-        let cell = cell_for(font, c, i);
         word_width += if word.is_empty() {
-            cell.width
+            piece.width()
         } else {
-            cell.width + tracking
+            piece.width() + tracking
         };
-        word.push(cell);
+        word.push(piece);
     }
-    flush_word(&mut current, &mut lines, &mut word, &mut word_width);
-    if !current.cells.is_empty() {
+    flush_word(
+        &mut current,
+        &mut current_width,
+        &mut lines,
+        &mut word,
+        &mut word_width,
+    );
+    if !current.is_empty() {
         lines.push(current);
     }
 
     // Trailing spaces at the end of a wrapped line would centre it off-kilter.
     for line in &mut lines {
-        while line
-            .cells
-            .last()
-            .is_some_and(|c| c.rows.iter().all(|r| r.trim().is_empty()))
-        {
-            let c = line.cells.pop().expect("checked by is_some_and");
-            line.width = line.width.saturating_sub(c.width + tracking);
+        while line.last().is_some_and(|p| p.glyph.is_blank()) {
+            line.pop();
         }
     }
-    lines.retain(|l| !l.cells.is_empty());
+    lines.retain(|l| !l.is_empty());
 
+    let lines: Vec<VisualLine> = lines
+        .into_iter()
+        .map(|pieces| pack(pieces, font, tracking))
+        .collect();
     let width = lines.iter().map(|l| l.width).max().unwrap_or(0);
     Layout {
         lines,
-        height: font.height,
         width,
+        tracking,
+    }
+}
+
+/// Turn a wrapped line of glyphs into rows of terminal text.
+fn pack(pieces: Vec<Piece>, font: &Font, tracking: usize) -> VisualLine {
+    let width =
+        pieces.iter().map(Piece::width).sum::<usize>() + tracking * pieces.len().saturating_sub(1);
+
+    if font.is_plain() {
+        let cells = pieces
+            .into_iter()
+            .map(|p| {
+                let width = p.width();
+                let text = match p.glyph {
+                    Glyph::Plain(s) => s,
+                    Glyph::Art(_) => " ".repeat(width),
+                };
+                Cell {
+                    rows: vec![text],
+                    width,
+                    src: p.src,
+                }
+            })
+            .collect();
+        return VisualLine {
+            cells,
+            width,
+            height: 1,
+            above: 0,
+            below: 0,
+        };
+    }
+
+    // Always the capitals' rows, so a line of nothing but dashes or dots
+    // stands where a line of letters would; then whatever overhangs them.
+    let cap = font.cap_px() as i32;
+    let (mut top, mut bottom) = (0i32, cap);
+    for piece in &pieces {
+        if let Glyph::Art(b) = &piece.glyph
+            && let Some((first, last)) = b.ink_rows()
+        {
+            top = top.min(first);
+            bottom = bottom.max(last + 1);
+        }
+    }
+    // Onto the row grid, which the cap line and the baseline both sit on.
+    let top = top.div_euclid(2) * 2;
+    let bottom = bottom + bottom.rem_euclid(2);
+    let height = ((bottom - top) / 2) as usize;
+    let above = (-top / 2) as usize;
+    let below = ((bottom - cap) / 2) as usize;
+    // A character with no art sits on the middle row of the capitals.
+    let plain_row = above + font.height / 2;
+
+    let cells = pieces
+        .into_iter()
+        .map(|p| {
+            let width = p.width();
+            let rows = match &p.glyph {
+                Glyph::Art(b) => (0..height)
+                    .map(|r| {
+                        let y = top + 2 * r as i32;
+                        (0..width)
+                            .map(|x| match (b.ink(x, y), b.ink(x, y + 1)) {
+                                (false, false) => ' ',
+                                (true, false) => '▀',
+                                (false, true) => '▄',
+                                (true, true) => '█',
+                            })
+                            .collect()
+                    })
+                    .collect(),
+                Glyph::Plain(s) => (0..height)
+                    .map(|r| match r == plain_row {
+                        true => s.clone(),
+                        false => " ".repeat(width),
+                    })
+                    .collect(),
+            };
+            Cell {
+                rows,
+                width,
+                src: p.src,
+            }
+        })
+        .collect();
+    VisualLine {
+        cells,
+        width,
+        height,
+        above,
+        below,
     }
 }
 

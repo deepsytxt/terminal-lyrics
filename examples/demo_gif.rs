@@ -2,18 +2,19 @@
 //! `cargo run --example demo_gif`.
 //!
 //! Each frame is the program's own [`render::render`] output, with every
-//! terminal cell drawn as a solid rectangle rather than captured through a
-//! terminal font. A font whose full block does not fill its cell leaves a
-//! hairline between blocks; here there is no font to get it wrong, so the
-//! result is the same on any machine.
+//! terminal cell drawn as solid rectangles — the whole cell for `█`, its top or
+//! bottom half for `▀` and `▄` — rather than captured through a terminal font.
+//! A font whose blocks do not fill their cell leaves a hairline between them;
+//! here there is no font to get it wrong, so the result is the same on any
+//! machine.
 //!
 //! The background is transparent, and the two files differ only in ink: the
 //! README picks one to match the GitHub theme.
 use std::fs::File;
 use std::path::Path;
 
-use anyhow::{Result, ensure};
-use terminal_lyrics::render::{self, Screen, Theme, font};
+use anyhow::Result;
+use terminal_lyrics::render::{self, Case, Screen, Theme, font};
 
 /// The terminal the frames are laid out in. Only the inked area is kept.
 const COLS: usize = 80;
@@ -53,6 +54,7 @@ const FRAMES: &[(&str, usize, u16)] = &[
     ("", 0, 49),
 ];
 
+/// Inked half-cells: two rows per terminal row, top half first.
 type Grid = Vec<Vec<bool>>;
 
 fn main() -> Result<()> {
@@ -62,7 +64,7 @@ fn main() -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
 
     // One crop for every frame, so the line never jumps.
-    let rows: Vec<usize> = (0..ROWS)
+    let rows: Vec<usize> = (0..2 * ROWS)
         .filter(|&y| grids.iter().any(|g| g[y].contains(&true)))
         .collect();
     let cols: Vec<usize> = (0..COLS)
@@ -72,9 +74,10 @@ fn main() -> Result<()> {
         anyhow::bail!("no frame inked anything");
     };
     let (x0, x1) = (cols[0], cols[cols.len() - 1]);
-    let pad = CELL_H / 2;
+    let half = CELL_H / 2;
+    let pad = half;
     let width = (x1 + 1 - x0) * CELL_W + 2 * pad;
-    let height = (y1 + 1 - y0) * CELL_H + 2 * pad;
+    let height = (y1 + 1 - y0) * half + 2 * pad;
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     for (path, rgb) in VARIANTS {
@@ -87,7 +90,7 @@ fn main() -> Result<()> {
             for (y, cells) in grid[y0..=y1].iter().enumerate() {
                 for x in (x0..=x1).filter(|&x| cells[x]) {
                     let left = pad + (x - x0) * CELL_W;
-                    for row in pad + y * CELL_H..pad + (y + 1) * CELL_H {
+                    for row in pad + y * half..pad + (y + 1) * half {
                         px[row * width + left..row * width + left + CELL_W].fill(1);
                     }
                 }
@@ -107,8 +110,10 @@ fn main() -> Result<()> {
 
 /// Which cells the renderer inks for this frame.
 fn ink(text: &str, reveal: usize) -> Result<Grid> {
+    // In the default case, as the program would show it.
+    let cased = Case::default().apply(text);
     let screen = Screen::Lyric {
-        text,
+        text: &cased,
         highlight: 0,
         reveal,
         second: None,
@@ -120,15 +125,19 @@ fn ink(text: &str, reveal: usize) -> Result<Grid> {
         ROWS as u16,
         Theme::default(),
     );
-    let mut grid = vec![vec![false; COLS]; ROWS];
+    let mut grid = vec![vec![false; COLS]; 2 * ROWS];
     for (y, line) in rendered.lines.iter().enumerate().take(ROWS) {
         let chars = line.spans.iter().flat_map(|s| s.content.chars());
         for (x, c) in chars.enumerate().take(COLS) {
-            ensure!(
-                c == ' ' || c == '█',
-                "{c:?} in {text:?}: only full blocks can be drawn as cells"
-            );
-            grid[y][x] = c == '█';
+            let (top, bottom) = match c {
+                ' ' => (false, false),
+                '▀' => (true, false),
+                '▄' => (false, true),
+                '█' => (true, true),
+                _ => anyhow::bail!("{c:?} in {text:?}: only blocks can be drawn as cells"),
+            };
+            grid[2 * y][x] = top;
+            grid[2 * y + 1][x] = bottom;
         }
     }
     Ok(grid)

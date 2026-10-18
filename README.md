@@ -105,6 +105,7 @@ lyrics are shown a phrase at a time.
 | `<` `>` | the same in whole seconds, for a song that is badly out |
 | `0` | forget this song's shift and go back to the default |
 | `f` | cycle font: block → compact → mini |
+| `c` | cycle case: upper → lower → as written |
 | `w` | one word at a time, or whole lines |
 | `v` | both voices at once, or one |
 | `s` | cycle the highlight: never → auto → always |
@@ -126,6 +127,7 @@ The flags worth knowing:
 | --- | --- |
 | `--player spotify` | pin one player when several are running |
 | `--font compact` | smaller letters: `block`, `compact` or `mini` |
+| `--case original` | letter case: `upper`, `lower`, or as the lyrics are written |
 | `--whole-lines` | always show the full phrase, never word by word |
 | `--sweep` | highlight the sung part of whatever is on screen |
 | `--single-voice` | one line at a time, even when two people are singing |
@@ -293,6 +295,16 @@ full second and for half of the shorter phrase. A backing vocal needs no such
 test — the source says outright that it is a second voice.
 
 ### Drawing
+
+Letters are pixel art drawn with half blocks (`▀ ▄ █`), so one pixel is a column
+wide and half a row tall — square on most terminals. Capitals, lowercase, digits
+and punctuation are drawn by hand; an accented letter is its base letter with
+the mark stamped on, which covers every Latin-script language, Vietnamese's
+stacked accents included. A line takes the capitals' five rows, plus a row or two
+only when something in it needs them — an accent on a capital, a descender — and
+the capitals stay where they were, so a word with a `g` in it does not bob. A
+line mostly in another script (Japanese, Cyrillic) is shown as plain text, and a
+stray symbol the font has no art for is shown as itself rather than dropped.
 
 ratatui diffs the screen buffer, so a frame that has not changed emits no bytes
 at all. Lines wrap at word boundaries and the font steps down a size before

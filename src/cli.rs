@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 
 use crate::config::{ColorSource, Sweep};
 use crate::lyrics::Provider;
+use crate::render::Case;
 
 #[derive(Parser, Debug, Default)]
 #[command(
@@ -29,6 +30,11 @@ pub struct Cli {
     /// Font used for the big letters.
     #[arg(long, value_name = "NAME")]
     pub font: Option<String>,
+
+    /// Letter case: `upper` (the default), `lower`, or `original` to draw the
+    /// lyrics as they are written.
+    #[arg(long, value_name = "CASE", value_parser = parse_case)]
+    pub case: Option<Case>,
 
     /// Shift lyrics in milliseconds; positive shows them later.
     #[arg(long, value_name = "MS", allow_negative_numbers = true)]
@@ -114,6 +120,11 @@ pub enum Command {
 /// One canonical provider-name parser, shared with the config file so a typo
 /// gets the same message wherever it is written.
 fn parse_provider(raw: &str) -> Result<Provider, String> {
+    raw.parse()
+}
+
+/// The same for the letter case.
+fn parse_case(raw: &str) -> Result<Case, String> {
     raw.parse()
 }
 
