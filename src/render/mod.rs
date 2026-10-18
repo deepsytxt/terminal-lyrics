@@ -18,9 +18,10 @@ use self::layout::Layout;
 /// Blank rows between wrapped lines of block art.
 pub const LINE_GAP: usize = 1;
 
-/// Blank rows between the two voices. Any tighter and they read as one phrase
-/// that happened to wrap, rather than as two people singing.
-pub const VOICE_GAP: usize = 1;
+/// Blank rows between the two voices. Twice the gap between wrapped lines, so
+/// the two read as two people singing rather than one phrase that happened to
+/// wrap.
+pub const VOICE_GAP: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
