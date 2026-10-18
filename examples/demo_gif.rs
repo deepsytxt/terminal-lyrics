@@ -57,13 +57,21 @@ const FRAMES: &[(&str, usize, u16)] = &[
 /// Inked half-cells: two rows per terminal row, top half first.
 type Grid = Vec<Vec<bool>>;
 
+/// The demo plays once in each case, capitals first as the program starts.
+const CASES: [Case; 2] = [Case::Upper, Case::Lower];
+
 fn main() -> Result<()> {
-    let grids = FRAMES
+    let frames: Vec<(&str, usize, u16, Case)> = CASES
         .iter()
-        .map(|&(text, reveal, _)| ink(text, reveal))
+        .flat_map(|&case| FRAMES.iter().map(move |&(t, r, d)| (t, r, d, case)))
+        .collect();
+    let grids = frames
+        .iter()
+        .map(|&(text, reveal, _, case)| ink(text, reveal, case))
         .collect::<Result<Vec<_>>>()?;
 
-    // One crop for every frame, so the line never jumps.
+    // One crop for every frame, so the line never jumps — the capitals sit on
+    // the same rows in both cases, with the lowercase descenders below them.
     let rows: Vec<usize> = (0..2 * ROWS)
         .filter(|&y| grids.iter().any(|g| g[y].contains(&true)))
         .collect();
@@ -85,7 +93,7 @@ fn main() -> Result<()> {
         let file = File::create(root.join(path))?;
         let mut enc = gif::Encoder::new(file, width as u16, height as u16, &palette)?;
         enc.set_repeat(gif::Repeat::Infinite)?;
-        for (grid, &(_, _, delay)) in grids.iter().zip(FRAMES) {
+        for (grid, &(_, _, delay, _)) in grids.iter().zip(&frames) {
             let mut px = vec![0u8; width * height];
             for (y, cells) in grid[y0..=y1].iter().enumerate() {
                 for x in (x0..=x1).filter(|&x| cells[x]) {
@@ -103,15 +111,14 @@ fn main() -> Result<()> {
             frame.dispose = gif::DisposalMethod::Background;
             enc.write_frame(&frame)?;
         }
-        println!("{path}: {width}x{height}, {} frames", FRAMES.len());
+        println!("{path}: {width}x{height}, {} frames", frames.len());
     }
     Ok(())
 }
 
 /// Which cells the renderer inks for this frame.
-fn ink(text: &str, reveal: usize) -> Result<Grid> {
-    // In the default case, as the program would show it.
-    let cased = Case::default().apply(text);
+fn ink(text: &str, reveal: usize, case: Case) -> Result<Grid> {
+    let cased = case.apply(text);
     let screen = Screen::Lyric {
         text: &cased,
         highlight: 0,

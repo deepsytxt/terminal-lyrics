@@ -12,7 +12,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/demo-dark.gif">
-  <img alt="Word-timed lyrics appearing one word at a time, a long word building up syllable by syllable" src="docs/demo-light.gif">
+  <img alt="Word-timed lyrics appearing one word at a time, a long word building up syllable by syllable, first in capitals and then in lowercase" src="docs/demo-light.gif">
 </picture>
 
 <sub>Rendered by the program itself.</sub>
