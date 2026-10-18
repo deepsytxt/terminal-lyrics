@@ -15,8 +15,7 @@
   <img alt="Word-timed lyrics appearing one word at a time, a long word building up syllable by syllable" src="docs/demo-light.gif">
 </picture>
 
-<sub>Rendered by the program itself. The demo words were written for it, so what
-you see is the display, not anyone's lyrics.</sub>
+<sub>Rendered by the program itself.</sub>
 
 </div>
 
