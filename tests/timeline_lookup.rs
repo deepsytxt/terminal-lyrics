@@ -246,21 +246,55 @@ fn a_very_short_background_phrase_is_held_long_enough_to_read() {
 }
 
 #[test]
-fn the_second_voice_never_gets_the_sweep_or_an_active_word() {
-    // The sweep belongs to the line being read. The second voice carries no
-    // words at all, so there is nothing for either to land on.
+fn a_background_vocal_never_gets_the_sweep_or_an_active_word() {
+    // It is texture, drawn whole. It carries no words at all, so there is
+    // nothing for either to land on.
     let t = tl(WITH_SECOND_VOICE);
     let Position::Line { index } = t.locate(13.0) else {
         panic!("the first line is up")
     };
-    let line = t.line(index).expect("a line");
-    assert_eq!(line.text, "first line");
-    assert_eq!(
-        t.highlight_chars(index, 13.0),
-        t.highlight_chars(index, 13.0)
-    );
-    assert!(
-        t.active_word(index, 13.0).is_none(),
-        "this line has no word tags"
-    );
+    let s = t.secondary(index, 13.0).expect("the backing vocal is up");
+    assert!(s.words.is_empty());
+    assert_eq!(t.second_active_word(index, 13.0), None);
+    assert_eq!(t.second_highlight_chars(index, 13.0), 0);
+}
+
+/// Two word-timed voices singing over each other for two and a half seconds.
+const WORD_TIMED_DUET: &str = "\
+[00:10.000]<00:10.000>first <00:11.000>voice <00:12.500>here<00:14.000>
+[00:11.500]<00:11.500>second <00:13.000>voice<00:16.000>
+";
+
+fn second_word(t: &Timeline, index: usize, pos: f64) -> Option<String> {
+    let s = t.secondary(index, pos)?;
+    let w = t.second_active_word(index, pos)?;
+    Some(s.text.chars().skip(w.range.start).take(w.range.len()).collect())
+}
+
+#[test]
+fn a_duet_partner_goes_word_by_word_alongside_the_line() {
+    let t = tl(WORD_TIMED_DUET);
+    let Position::Line { index } = t.locate(12.0) else {
+        panic!("the second voice has taken over")
+    };
+    assert_eq!(t.line(index).unwrap().text, "second voice");
+
+    // Both voices are mid-phrase, each on its own word.
+    assert_eq!(t.active_word(index, 12.0).map(|w| w.range), Some(0..6));
+    assert_eq!(second_word(&t, index, 12.0).as_deref(), Some("voice"));
+    assert_eq!(second_word(&t, index, 13.0).as_deref(), Some("here"));
+    assert_eq!(t.active_word(index, 13.0).map(|w| w.range), Some(7..12));
+}
+
+#[test]
+fn a_duet_partner_sweeps_to_its_own_word_timings() {
+    let t = tl(WORD_TIMED_DUET);
+    let Position::Line { index } = t.locate(13.25) else {
+        panic!("the second voice has taken over")
+    };
+    // Halfway through "here" (12.5 to 14.0), which starts at char 12.
+    assert_eq!(t.second_highlight_chars(index, 13.25), 14);
+    // Its last word runs to when that voice stops, not to when it was cut off.
+    let s = t.secondary(index, 13.25).unwrap();
+    assert!((s.words.last().unwrap().end - 14.0).abs() < 0.001);
 }

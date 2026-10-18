@@ -72,6 +72,11 @@ pub struct SecondVoice<'a> {
     /// A background vocal: dimmed, and drawn a size smaller than the line it
     /// sits over. The other half of a duet is neither — it is a co-equal voice.
     pub background: bool,
+    /// As for [`Screen::Lyric`]: how far the sweep has got, and how much is
+    /// inked. A duet partner goes word by word and sweeps just like the line;
+    /// both are ignored for a background vocal, which is always drawn whole.
+    pub highlight: usize,
+    pub reveal: usize,
 }
 
 /// What the screen should show right now.
@@ -87,8 +92,7 @@ pub enum Screen<'a> {
         text: &'a str,
         highlight: usize,
         reveal: usize,
-        /// Drawn above `text`, and always drawn whole: the sweep and the
-        /// word-by-word split belong to the line being read.
+        /// Drawn above `text`.
         second: Option<SecondVoice<'a>>,
     },
     /// Track known, lyrics being looked up.
@@ -125,17 +129,20 @@ pub fn render(
             let (main, second) = fit_voices(text, *second, font, width, height);
             let mut rows: Vec<Line<'static>> = Vec::new();
             if let Some(s) = &second {
-                // Grey for a background vocal; the same colour the main line's
-                // unsung characters use for a duet partner, so the two read as
-                // equals rather than as a line and its shadow.
-                let colour = match s.background {
-                    true => theme.dim,
-                    false => theme.unsung,
+                // Grey and flat for a background vocal. A duet partner is drawn
+                // exactly as the line is, so the two read as equals rather than
+                // as a line and its shadow.
+                let style = match s.background {
+                    true => RowStyle::Flat(theme.dim),
+                    false => RowStyle::Sweep {
+                        highlight: s.highlight,
+                        reveal: s.reveal,
+                    },
                 };
                 rows.extend(block_rows(
                     &s.fitted.layout,
                     &s.fitted.font,
-                    RowStyle::Flat(colour),
+                    style,
                     width,
                     theme,
                 ));
@@ -165,10 +172,10 @@ pub fn render(
 
 /// How a run of glyph art is coloured.
 enum RowStyle {
-    /// The line being read: swept characters bold in `sung`, the rest in
-    /// `unsung`, and only the first `reveal` inked at all.
+    /// A lead voice, the line or a duet partner: swept characters bold in
+    /// `sung`, the rest in `unsung`, and only the first `reveal` inked at all.
     Sweep { highlight: usize, reveal: usize },
-    /// A second voice: one colour, all of it inked, never bold.
+    /// A background vocal: one colour, all of it inked, never bold.
     Flat(Color),
 }
 
@@ -178,10 +185,12 @@ struct Fitted {
     font: Font,
 }
 
-/// A fitted second voice, and whether it is a background vocal.
+/// A fitted second voice, and how to colour it.
 struct FittedSecond {
     fitted: Fitted,
     background: bool,
+    highlight: usize,
+    reveal: usize,
 }
 
 /// Fit the line, and the voice over it, into the space there is.
@@ -227,6 +236,8 @@ fn fit_voices(
                         font: second_font,
                     },
                     background: second.background,
+                    highlight: second.highlight,
+                    reveal: second.reveal,
                 }),
             );
         }

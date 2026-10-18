@@ -285,6 +285,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
         let mut line_text = String::new();
         let mut second_text = String::new();
         let mut second_background = false;
+        let mut second_highlight = 0usize;
+        let mut second_reveal = 0usize;
         let mut highlight = 0usize;
         let mut reveal = 0usize;
 
@@ -301,7 +303,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
             } => match timeline.locate(pos) {
                 Position::Line { index } => {
                     if let Some(line) = timeline.line(index) {
-                        highlight = if app.cfg.sweep.applies(*word_timed, app.cfg.word_by_word) {
+                        let sweep = app.cfg.sweep.applies(*word_timed, app.cfg.word_by_word);
+                        highlight = if sweep {
                             timeline.highlight_chars(index, pos)
                         } else {
                             0
@@ -310,26 +313,59 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
                         // A second voice singing over this line, if the user
                         // wants both on screen. The parser always works them
                         // out; this only decides whether we ask.
+                        let mut partner = None;
                         if app.cfg.overlapping_voices
                             && let Some(s) = timeline.secondary(index, pos)
                             && !s.text.trim().is_empty()
                         {
                             second_text = s.text.clone();
                             second_background = s.background;
+                            second_reveal = s.text.chars().count();
+                            if !s.background {
+                                partner = Some(s);
+                            }
                         }
-                        let duet = !second_text.is_empty() && !second_background;
 
                         // With real word timings, show the word being sung on
                         // its own. Decided per line, not per file: a source can
                         // carry tags on some lines and not others, and those
                         // lines must still appear in full rather than vanish.
                         //
-                        // Not against a duet partner, though: two whole phrases
-                        // are being sung, and one word of one of them stacked
-                        // under all of the other reads as a mistake. A
-                        // background vocal is different — it is texture, and
-                        // sits happily over a single word.
-                        let split = app.cfg.word_by_word && !line.words.is_empty() && !duet;
+                        // A duet partner goes word by word alongside, so both
+                        // voices step through their words together — but only
+                        // if it has words of its own. One word of one phrase
+                        // stacked under all of the other reads as a mistake, so
+                        // a partner without timings keeps both phrases whole. A
+                        // background vocal is texture, and sits happily over a
+                        // single word.
+                        let split = app.cfg.word_by_word
+                            && !line.words.is_empty()
+                            && partner.is_none_or(|p| !p.words.is_empty());
+
+                        // The partner is drawn as the line is: the same split
+                        // and the same sweep.
+                        if partner.is_some() {
+                            second_highlight = if sweep {
+                                timeline.second_highlight_chars(index, pos)
+                            } else {
+                                0
+                            };
+                            if split {
+                                match timeline.second_active_word(index, pos) {
+                                    Some(word) => {
+                                        second_highlight =
+                                            second_highlight.saturating_sub(word.range.start);
+                                        second_reveal = word.revealed();
+                                        second_text = second_text
+                                            .chars()
+                                            .skip(word.range.start)
+                                            .take(word.range.len())
+                                            .collect();
+                                    }
+                                    None => second_text.clear(),
+                                }
+                            }
+                        }
 
                         match split {
                             // The whole word is handed to the renderer even when
@@ -368,6 +404,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
                         second: (!second_text.is_empty()).then_some(SecondVoice {
                             text: &second_text,
                             background: second_background,
+                            highlight: second_highlight,
+                            reveal: second_reveal,
                         }),
                     }
                 }

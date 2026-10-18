@@ -294,6 +294,8 @@ fn the_second_voice_is_drawn_above_the_main_line() {
             Some(SecondVoice {
                 text: "OOH",
                 background: true,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &f,
@@ -325,6 +327,8 @@ fn a_background_voice_is_dimmed_and_a_size_smaller() {
             Some(SecondVoice {
                 text: "OOH",
                 background: true,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &font::block(),
@@ -343,6 +347,57 @@ fn a_background_voice_is_dimmed_and_a_size_smaller() {
 }
 
 #[test]
+fn a_duet_partner_is_swept_and_revealed_like_the_line() {
+    let theme = Theme::default();
+    let screen = |background| {
+        render(
+            &lyric(
+                "LOVE",
+                Some(SecondVoice {
+                    text: "NEED",
+                    background,
+                    highlight: 2,
+                    reveal: usize::MAX,
+                }),
+            ),
+            &font::block(),
+            80,
+            24,
+            theme,
+        )
+    };
+    // The partner's five rows are the first inked; the line sits below.
+    let duet = inked(&screen(false));
+    assert!(
+        duet[..5].iter().all(|(_, c)| c.contains(&theme.sung)),
+        "the partner's sung half is highlighted: {duet:?}"
+    );
+    let backing = inked(&screen(true));
+    assert!(
+        backing.iter().all(|(_, c)| !c.contains(&theme.sung)),
+        "a backing vocal is never swept"
+    );
+
+    // Nothing reached yet: the partner holds its space and draws nothing.
+    let unrevealed = render(
+        &lyric(
+            "LOVE",
+            Some(SecondVoice {
+                text: "NEED",
+                background: false,
+                highlight: 0,
+                reveal: 0,
+            }),
+        ),
+        &font::block(),
+        80,
+        24,
+        theme,
+    );
+    assert_eq!(inked(&unrevealed).len(), 5, "only the line is inked");
+}
+
+#[test]
 fn a_duet_partner_is_full_size_and_lit() {
     let theme = Theme::default();
     let out = render(
@@ -351,6 +406,8 @@ fn a_duet_partner_is_full_size_and_lit() {
             Some(SecondVoice {
                 text: "NEED",
                 background: false,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &font::block(),
@@ -381,6 +438,8 @@ fn both_voices_step_down_together_before_either_is_dropped() {
             Some(SecondVoice {
                 text: "OOH",
                 background: true,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &font::block(),
@@ -421,6 +480,8 @@ fn the_main_line_keeps_its_solo_size_when_the_second_voice_is_dropped() {
                        ALONGSIDE ANYTHING AT ALL NO MATTER HOW FAR EITHER OF \
                        THE TWO VOICES STEPS DOWN IN SIZE FIRST",
                 background: true,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &font::block(),
@@ -450,6 +511,8 @@ fn a_blank_main_line_still_draws_its_second_voice() {
             Some(SecondVoice {
                 text: "OOH",
                 background: true,
+                highlight: 0,
+                reveal: usize::MAX,
             }),
         ),
         &font::block(),

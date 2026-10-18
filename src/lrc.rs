@@ -34,10 +34,6 @@ pub struct Word {
 
 /// A second voice singing over a line: a background vocal ("(ooh ooh)"), or the
 /// other half of a duet whose phrase is still running when this line comes in.
-///
-/// It carries no `words`. A second voice is drawn whole and never swept — the
-/// sweep belongs to the line being read — and leaving the field out makes that
-/// a property of the model rather than a rule someone has to remember.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Secondary {
     /// When it comes in. Not the host line's start: a background phrase usually
@@ -46,6 +42,12 @@ pub struct Secondary {
     /// When the source stops it.
     pub end: f64,
     pub text: String,
+    /// The duet partner's own word timings, measured in its `text`, so it can
+    /// go word by word alongside the line instead of forcing both back to
+    /// whole phrases. Always empty for a background vocal: that is texture,
+    /// drawn whole and never swept, and leaving the words out makes that a
+    /// property of the model rather than a rule someone has to remember.
+    pub words: Vec<Word>,
     /// Background vocals are dimmed and drawn a size smaller. The other half of
     /// a duet is neither: it is a co-equal voice.
     pub background: bool,
@@ -97,34 +99,43 @@ impl Line {
     /// A timed span butted straight up against the one before it is therefore
     /// part of the same word, and must not be shown as a word of its own.
     pub fn continues_word(&self, i: usize) -> bool {
-        let Some(prev) = i.checked_sub(1).and_then(|p| self.words.get(p)) else {
-            return false;
-        };
-        let Some(cur) = self.words.get(i) else {
-            return false;
-        };
-        let gap = cur.range.start.saturating_sub(prev.range.end);
-        self.text
-            .chars()
-            .skip(prev.range.end)
-            .take(gap)
-            .all(|c| !c.is_whitespace())
+        continues_word(&self.text, &self.words, i)
     }
 
     /// The char range of the whole word that word `i` belongs to, from the start
     /// of its first syllable to the end of its last.
     pub fn word_bounds(&self, i: usize) -> Option<Range<usize>> {
-        self.words.get(i)?;
-        let mut first = i;
-        while self.continues_word(first) {
-            first -= 1;
-        }
-        let mut last = i;
-        while self.continues_word(last + 1) {
-            last += 1;
-        }
-        Some(self.words[first].range.start..self.words[last].range.end)
+        word_bounds(&self.text, &self.words, i)
     }
+}
+
+/// [`Line::continues_word`], for any voice: a line or a duet partner.
+pub fn continues_word(text: &str, words: &[Word], i: usize) -> bool {
+    let Some(prev) = i.checked_sub(1).and_then(|p| words.get(p)) else {
+        return false;
+    };
+    let Some(cur) = words.get(i) else {
+        return false;
+    };
+    let gap = cur.range.start.saturating_sub(prev.range.end);
+    text.chars()
+        .skip(prev.range.end)
+        .take(gap)
+        .all(|c| !c.is_whitespace())
+}
+
+/// [`Line::word_bounds`], for any voice: a line or a duet partner.
+pub fn word_bounds(text: &str, words: &[Word], i: usize) -> Option<Range<usize>> {
+    words.get(i)?;
+    let mut first = i;
+    while continues_word(text, words, first) {
+        first -= 1;
+    }
+    let mut last = i;
+    while continues_word(text, words, last + 1) {
+        last += 1;
+    }
+    Some(words[first].range.start..words[last].range.end)
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -491,20 +502,11 @@ fn finalise(drafts: Vec<Draft>, meta: Meta) -> Lyrics {
     pair_duets(&mut lines, &mains);
 
     for line in &mut lines {
-        let line_end = line.end;
-        let count = line.words.len();
-        for w in 0..count {
-            // An end tag already set this; only fill in the ones still open.
-            if line.words[w].end.is_finite() {
-                continue;
-            }
-            let end = if w + 1 < count {
-                line.words[w + 1].start
-            } else {
-                line_end
-            };
-            let w = &mut line.words[w];
-            w.end = end.max(w.start);
+        close_words(&mut line.words, line.end);
+        // A duet partner's words run to when that voice stops, not to when the
+        // line it was cut off by takes over.
+        for s in &mut line.secondary {
+            close_words(&mut s.words, s.end);
         }
         line.secondary.sort_by(|a, b| a.start.total_cmp(&b.start));
     }
@@ -521,11 +523,32 @@ fn finalise(drafts: Vec<Draft>, meta: Meta) -> Lyrics {
             for s in &mut line.secondary {
                 s.start += shift;
                 s.end += shift;
+                for w in &mut s.words {
+                    w.start += shift;
+                    w.end += shift;
+                }
             }
         }
     }
 
     Lyrics { lines, meta }
+}
+
+/// Fill in every word end still open: the next word's start, or `end` for the
+/// last one. An end tag already set one; those are left alone.
+fn close_words(words: &mut [Word], end: f64) {
+    let count = words.len();
+    for w in 0..count {
+        if words[w].end.is_finite() {
+            continue;
+        }
+        let next = match w + 1 < count {
+            true => words[w + 1].start,
+            false => end,
+        };
+        let w = &mut words[w];
+        w.end = next.max(w.start);
+    }
 }
 
 /// Hang each background vocal on the line it sings over.
@@ -554,6 +577,7 @@ fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
             start: bg.start,
             end,
             text,
+            words: Vec::new(),
             background: true,
         });
     }
@@ -620,6 +644,7 @@ fn collapse_equal_starts(lines: &mut Vec<Line>, mains: Vec<Draft>) -> Vec<Draft>
                 start: line.start,
                 end: prev_draft.sung_end().unwrap_or(f64::NEG_INFINITY),
                 text: prev_line.text.clone(),
+                words: prev_line.words.clone(),
                 background: false,
             });
         }
@@ -658,9 +683,9 @@ fn assign_ends(lines: &mut [Line]) {
 ///
 /// The later line takes the reading position and the earlier one moves up: the
 /// alternative leaves the newly-arrived voice hidden behind a phrase that is
-/// already finishing. Nothing is lost by copying the text — the earlier line
-/// keeps its own window, its words and its sweep right up to the moment the
-/// second voice arrives.
+/// already finishing. Nothing is lost by copying the text and its words — the
+/// earlier line keeps its own window and its sweep right up to the moment the
+/// second voice arrives, and carries on word by word above the new one after.
 ///
 /// Only the immediately preceding line is considered. A three-way overlap is
 /// vanishingly rare and the screen holds two voices anyway.
@@ -683,11 +708,13 @@ fn pair_duets(lines: &mut [Line], mains: &[Draft]) {
         if text.trim().is_empty() {
             continue;
         }
+        let words = prev.words.clone();
         let start = cur.start;
         lines[idx].secondary.push(Secondary {
             start,
             end: prev_end,
             text,
+            words,
             background: false,
         });
     }

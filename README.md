@@ -280,8 +280,10 @@ Where two people are singing at once, both are on screen. A backing vocal — th
 voice — sits above the line in grey and a size smaller, because it is texture
 rather than the thing being read; it is drawn whole and never swept, and the line
 underneath keeps the highlight. The other half of a duet is drawn full size and
-lit, since it is a voice and not an echo, and while one is up the line beneath it
-is shown whole rather than a word at a time.
+lit, since it is a voice and not an echo, and is treated exactly like the line:
+in word-by-word mode both voices show the word each is singing, side by side in
+time, and the sweep runs across both. Only when the partner has no word timings
+of its own are the two shown as whole phrases.
 
 Overlap alone is not enough to call something a duet. Across 39 files from the
 AMLL database the median overlap between one line and the next is a quarter of a

@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use crate::lrc::Lyrics;
+use crate::lrc::{Lyrics, Word};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Position {
@@ -113,15 +113,26 @@ impl Timeline {
     /// worse than holding.
     pub fn active_word(&self, index: usize, pos: f64) -> Option<ActiveWord> {
         let line = self.lyrics.lines.get(index)?;
-        let started = line.words.partition_point(|w| w.start <= pos);
-        if started == 0 {
-            return None;
-        }
-        let cur = started - 1;
-        Some(ActiveWord {
-            range: line.word_bounds(cur)?,
-            sung_to: line.words[cur].range.end,
-        })
+        active_word_in(&line.text, &line.words, pos)
+    }
+
+    /// [`Timeline::active_word`] for the duet partner singing over line `index`.
+    ///
+    /// `None` for a background vocal, which has no words: it is drawn whole.
+    pub fn second_active_word(&self, index: usize, pos: f64) -> Option<ActiveWord> {
+        let s = self.secondary(index, pos)?;
+        active_word_in(&s.text, &s.words, pos)
+    }
+
+    /// [`Timeline::highlight_chars`] for the duet partner singing over line
+    /// `index`. Only real word timings move it: the partner's window starts
+    /// where it was cut off, not where it began, so there is nothing honest to
+    /// interpolate across.
+    pub fn second_highlight_chars(&self, index: usize, pos: f64) -> usize {
+        let Some(s) = self.secondary(index, pos) else {
+            return 0;
+        };
+        sweep_words(&s.words, s.text.chars().count(), pos).unwrap_or(0)
     }
 
     /// How far the highlight has travelled across line `index`, in characters.
@@ -138,22 +149,8 @@ impl Timeline {
             return 0;
         }
 
-        if !line.words.is_empty() {
-            let words = &line.words;
-            // Last word that has already started.
-            let started = words.partition_point(|w| w.start <= pos);
-            if started == 0 {
-                return 0;
-            }
-            let w = &words[started - 1];
-            let span = w.end - w.start;
-            let frac = if span > f64::EPSILON {
-                ((pos - w.start) / span).clamp(0.0, 1.0)
-            } else {
-                1.0
-            };
-            let width = w.range.end.saturating_sub(w.range.start) as f64;
-            return (w.range.start + (width * frac).round() as usize).min(total);
+        if let Some(chars) = sweep_words(&line.words, total, pos) {
+            return chars;
         }
 
         let span = line.end - line.start;
@@ -163,4 +160,40 @@ impl Timeline {
         let frac = ((pos - line.start) / span).clamp(0.0, 1.0);
         ((total as f64) * frac).round() as usize
     }
+}
+
+/// The word being sung in a voice with these word timings. See
+/// [`Timeline::active_word`].
+fn active_word_in(text: &str, words: &[Word], pos: f64) -> Option<ActiveWord> {
+    let started = words.partition_point(|w| w.start <= pos);
+    if started == 0 {
+        return None;
+    }
+    let cur = started - 1;
+    Some(ActiveWord {
+        range: crate::lrc::word_bounds(text, words, cur)?,
+        sung_to: words[cur].range.end,
+    })
+}
+
+/// How far real word timings have swept across a voice `total` characters long.
+/// `None` when there are no word timings to follow.
+fn sweep_words(words: &[Word], total: usize, pos: f64) -> Option<usize> {
+    if words.is_empty() {
+        return None;
+    }
+    // Last word that has already started.
+    let started = words.partition_point(|w| w.start <= pos);
+    if started == 0 {
+        return Some(0);
+    }
+    let w = &words[started - 1];
+    let span = w.end - w.start;
+    let frac = if span > f64::EPSILON {
+        ((pos - w.start) / span).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let width = w.range.end.saturating_sub(w.range.start) as f64;
+    Some((w.range.start + (width * frac).round() as usize).min(total))
 }
