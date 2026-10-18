@@ -31,8 +31,7 @@ pub struct Cli {
     #[arg(long, value_name = "NAME")]
     pub font: Option<String>,
 
-    /// Letter case: `upper` (the default), `lower`, or `original` to draw the
-    /// lyrics as they are written.
+    /// Letter case: `upper` (the default) or `lower`.
     #[arg(long, value_name = "CASE", value_parser = parse_case)]
     pub case: Option<Case>,
 

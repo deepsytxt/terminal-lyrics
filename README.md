@@ -105,7 +105,7 @@ lyrics are shown a phrase at a time.
 | `<` `>` | the same in whole seconds, for a song that is badly out |
 | `0` | forget this song's shift and go back to the default |
 | `f` | cycle font: block → compact → mini |
-| `c` | cycle case: upper → lower → as written |
+| `c` | switch between capitals and lowercase |
 | `w` | one word at a time, or whole lines |
 | `v` | both voices at once, or one |
 | `s` | cycle the highlight: never → auto → always |
@@ -127,7 +127,7 @@ The flags worth knowing:
 | --- | --- |
 | `--player spotify` | pin one player when several are running |
 | `--font compact` | smaller letters: `block`, `compact` or `mini` |
-| `--case original` | letter case: `upper`, `lower`, or as the lyrics are written |
+| `--case lower` | lowercase letters instead of capitals |
 | `--whole-lines` | always show the full phrase, never word by word |
 | `--sweep` | highlight the sung part of whatever is on screen |
 | `--single-voice` | one line at a time, even when two people are singing |

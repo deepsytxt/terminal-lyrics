@@ -190,8 +190,8 @@ impl Sweep {
 pub struct Config {
     pub player: Option<String>,
     pub font: String,
-    /// Upper, lower, or as written. Applied before layout, one character for
-    /// one, so the sweep's offsets still line up.
+    /// Upper or lower. Applied before layout, one character for one, so the
+    /// sweep's offsets still line up.
     pub case: Case,
     /// Where a track that has never been nudged starts. A track the user has
     /// corrected with `,` / `.` keeps its own offset instead; see

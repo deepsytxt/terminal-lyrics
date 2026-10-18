@@ -402,8 +402,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
                     }
                     // Recased here rather than in the renderer: the mapping is
                     // one character for one, so the offsets above still hold.
-                    line_text = app.cfg.case.apply(&line_text).into_owned();
-                    second_text = app.cfg.case.apply(&second_text).into_owned();
+                    line_text = app.cfg.case.apply(&line_text);
+                    second_text = app.cfg.case.apply(&second_text);
                     Screen::Lyric {
                         text: &line_text,
                         highlight,

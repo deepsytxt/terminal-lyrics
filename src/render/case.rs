@@ -5,8 +5,6 @@
 //! `SS` would put every highlight after it one letter out. A character whose
 //! other case is longer than itself keeps its own form instead.
 
-use std::borrow::Cow;
-
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -17,14 +15,11 @@ pub enum Case {
     Upper,
     /// All lowercase.
     Lower,
-    /// As the lyrics are written.
-    Original,
 }
 
 impl Case {
-    pub fn apply(self, text: &str) -> Cow<'_, str> {
+    pub fn apply(self, text: &str) -> String {
         match self {
-            Case::Original => Cow::Borrowed(text),
             Case::Upper => text.chars().map(upper).collect(),
             Case::Lower => text.chars().map(lower).collect(),
         }
@@ -34,16 +29,14 @@ impl Case {
         match self {
             Case::Upper => "upper",
             Case::Lower => "lower",
-            Case::Original => "original",
         }
     }
 
-    /// Order used by the `c` key.
+    /// The other one, for the `c` key.
     pub fn next(self) -> Case {
         match self {
             Case::Upper => Case::Lower,
-            Case::Lower => Case::Original,
-            Case::Original => Case::Upper,
+            Case::Lower => Case::Upper,
         }
     }
 }
@@ -55,10 +48,7 @@ impl std::str::FromStr for Case {
         match s.trim().to_ascii_lowercase().as_str() {
             "upper" => Ok(Case::Upper),
             "lower" => Ok(Case::Lower),
-            "original" => Ok(Case::Original),
-            _ => Err(format!(
-                "unknown case `{s}`; expected upper, lower or original"
-            )),
+            _ => Err(format!("unknown case `{s}`; expected upper or lower")),
         }
     }
 }
@@ -90,7 +80,7 @@ mod tests {
 
     #[test]
     fn every_case_keeps_the_character_count() {
-        for case in [Case::Upper, Case::Lower, Case::Original] {
+        for case in [Case::Upper, Case::Lower] {
             assert_eq!(
                 case.apply(MIXED).chars().count(),
                 MIXED.chars().count(),
@@ -103,26 +93,19 @@ mod tests {
     fn the_cases_do_what_they_say() {
         assert_eq!(Case::Upper.apply("Señor ß"), "SEÑOR ẞ");
         assert_eq!(Case::Lower.apply("Señor ẞ"), "señor ß");
-        assert_eq!(Case::Original.apply("Señor"), "Señor");
     }
 
     #[test]
-    fn the_key_cycles_through_all_three() {
-        let mut c = Case::Upper;
-        let mut seen = Vec::new();
-        for _ in 0..3 {
-            seen.push(c);
-            c = c.next();
-        }
-        assert_eq!(c, Case::Upper);
-        assert_eq!(seen, [Case::Upper, Case::Lower, Case::Original]);
+    fn the_key_toggles_between_the_two() {
+        assert_eq!(Case::Upper.next(), Case::Lower);
+        assert_eq!(Case::Lower.next(), Case::Upper);
     }
 
     #[test]
     fn labels_parse_back() {
-        for case in [Case::Upper, Case::Lower, Case::Original] {
+        for case in [Case::Upper, Case::Lower] {
             assert_eq!(case.label().parse::<Case>(), Ok(case));
         }
-        assert!("title".parse::<Case>().is_err());
+        assert!("original".parse::<Case>().is_err());
     }
 }
