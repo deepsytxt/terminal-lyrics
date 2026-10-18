@@ -74,9 +74,8 @@ macOS backend is split the same way: everything with a decision in it is in
 
 ## After making changes
 
-Both of these, every time a change works:
-
-1. **Build and install**, so the `lyrics` on PATH has the change:
+1. **Build and install** every time a change works, so the `lyrics` on PATH
+   has the change and can be tried:
 
    ```bash
    cargo build --release
@@ -86,4 +85,7 @@ Both of these, every time a change works:
    (`install -D` is Linux-only; macOS's `-D` means something else, so make the
    directory separately if it is missing.)
 
-2. **Commit and push** to `origin main`.
+2. **Commit and push** to `origin main` only once the user has tried it and
+   says it is right. A change often gets adjusted after a first look, so
+   finish by saying it is installed and ready to try, and wait for the
+   go-ahead rather than pushing straight away.
