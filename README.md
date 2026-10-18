@@ -97,6 +97,10 @@ them in block letters. Where the lyrics carry real per-word timings they appear
 **one word at a time**, each word arriving as it is sung, while line-level
 lyrics are shown a phrase at a time.
 
+Closing the player does not close the lyrics: the screen goes back to "nothing
+playing" and picks up the next player that starts with music in it, or the one
+you named with `--player` as soon as it is back.
+
 | key | |
 | --- | --- |
 | `q` `Esc` | quit |

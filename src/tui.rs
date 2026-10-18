@@ -20,7 +20,7 @@ use tokio::sync::mpsc;
 use crate::config::Config;
 use crate::lyrics::{Engine, Outcome, Source};
 use crate::offsets::Offsets;
-use crate::player::{EventRx, PlayerEvent, PlayerHandle, Track};
+use crate::player::{Link, PlayerEvent, PlayerHandle, Session, Track, pick_reconnect};
 use crate::render::font::{self, Font};
 use crate::render::{Screen, SecondVoice, Theme};
 use crate::sync::{Change, SyncEngine};
@@ -180,24 +180,29 @@ impl App {
     }
 }
 
-/// Run the visualiser until the user quits or the player disappears.
+/// How often to look for a player again once the one being followed closes.
+const RECONNECT_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Run the visualiser until the user quits. A player that closes is not a
+/// reason to stop: the screen goes back to "nothing playing" and the next
+/// player to start is picked up.
 pub async fn run(
     cfg: Config,
-    player: PlayerHandle,
-    events: EventRx,
+    session: Session,
+    link: Link,
     lookup: Arc<Engine>,
     offsets: Offsets,
 ) -> Result<()> {
     let terminal = ratatui::try_init().context("failed to take over the terminal")?;
-    let result = run_inner(cfg, player, events, lookup, offsets, terminal).await;
+    let result = run_inner(cfg, session, link, lookup, offsets, terminal).await;
     ratatui::restore();
     result
 }
 
 async fn run_inner(
     cfg: Config,
-    player: PlayerHandle,
-    mut events: EventRx,
+    session: Session,
+    link: Link,
     lookup: Arc<Engine>,
     offsets: Offsets,
     mut terminal: DefaultTerminal,
@@ -212,6 +217,11 @@ async fn run_inner(
 
     let mut sigterm = signal_stream();
 
+    // `None` while no player is open.
+    let mut link = Some(link);
+    let mut retry = tokio::time::interval(RECONNECT_INTERVAL);
+    retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
     loop {
         draw(&mut terminal, &app)?;
         if app.should_quit {
@@ -220,7 +230,7 @@ async fn run_inner(
 
         tokio::select! {
             // Player state.
-            Some(event) = events.recv() => {
+            event = next_event(&mut link) => {
                 let now = Instant::now();
                 let gone = matches!(event, PlayerEvent::Gone);
                 match app.apply_player_event(event, now) {
@@ -234,7 +244,24 @@ async fn run_inner(
                     Change::Resynced | Change::None => {}
                 }
                 if gone {
-                    return Ok(());
+                    link = None;
+                    retry.reset();
+                }
+            }
+
+            // No player: see whether one has started.
+            _ = retry.tick(), if link.is_none() => {
+                let wanted = app.cfg.player.clone();
+                let found = session
+                    .survey()
+                    .await
+                    .ok()
+                    .and_then(|states| pick_reconnect(states, wanted.as_deref()));
+                if let Some(name) = found
+                    && let Ok(opened) = Link::open(&session, &name).await
+                {
+                    app.note(format!("following {}", opened.name));
+                    link = Some(opened);
                 }
             }
 
@@ -246,7 +273,8 @@ async fn run_inner(
             // Keyboard.
             Some(Ok(event)) = keys.next() => {
                 if let Event::Key(key) = event {
-                    handle_key(&mut app, key, &player, &lookup, &fetch_tx).await;
+                    let player = link.as_ref().map(|l| &l.control);
+                    handle_key(&mut app, key, player, &lookup, &fetch_tx).await;
                 }
             }
 
@@ -256,6 +284,15 @@ async fn run_inner(
                 return Ok(());
             }
         }
+    }
+}
+
+/// The next event from the player being followed. A stream that ends without
+/// saying so is a player gone all the same; with none open, this never fires.
+async fn next_event(link: &mut Option<Link>) -> PlayerEvent {
+    match link {
+        Some(l) => l.events.recv().await.unwrap_or(PlayerEvent::Gone),
+        None => std::future::pending().await,
     }
 }
 
@@ -562,7 +599,7 @@ fn nudge(app: &mut App, delta_ms: i64) {
 async fn handle_key(
     app: &mut App,
     key: KeyEvent,
-    player: &PlayerHandle,
+    player: Option<&PlayerHandle>,
     lookup: &Arc<Engine>,
     tx: &mpsc::UnboundedSender<FetchResult>,
 ) {
@@ -637,8 +674,13 @@ async fn handle_key(
         }
         KeyCode::Char(' ') => {
             // The D-Bus connection is already open, so this costs nothing extra.
-            if let Err(e) = player.play_pause().await {
-                app.note(format!("play/pause failed: {e}"));
+            match player {
+                Some(player) => {
+                    if let Err(e) = player.play_pause().await {
+                        app.note(format!("play/pause failed: {e}"));
+                    }
+                }
+                None => app.note("no player open"),
             }
         }
         _ => {}

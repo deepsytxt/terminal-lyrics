@@ -5,7 +5,7 @@
 //! and reports no track, so taking the first name alphabetically meant
 //! following silence while music played next to it.
 
-use terminal_lyrics::player::{PlayerState, rank_players};
+use terminal_lyrics::player::{PlayerState, pick_reconnect, rank_players};
 
 fn player(name: &str, playing: bool, has_track: bool) -> PlayerState {
     PlayerState {
@@ -69,4 +69,35 @@ fn something_is_chosen_even_when_every_player_is_idle() {
 #[test]
 fn no_players_means_no_choice() {
     assert!(rank_players(vec![]).is_none());
+}
+
+#[test]
+fn after_a_player_closes_an_idle_browser_is_not_picked_up() {
+    // The browser's MPRIS entry never goes away. Following it the moment the
+    // music player closed would leave the display stuck on it.
+    let states = vec![player("chromium.instance1", false, false)];
+    assert_eq!(pick_reconnect(states, None), None);
+}
+
+#[test]
+fn after_a_player_closes_one_with_music_loaded_is_picked_up() {
+    let states = vec![
+        player("chromium.instance1", false, false),
+        player("spotify", false, true),
+    ];
+    assert_eq!(pick_reconnect(states, None).as_deref(), Some("spotify"));
+}
+
+#[test]
+fn a_named_player_is_picked_up_as_soon_as_it_is_back() {
+    // Named on the command line, it is followed even before it loads a track.
+    let states = vec![player("vlc", true, true), player("spotify", false, false)];
+    assert_eq!(
+        pick_reconnect(states, Some("spot")).as_deref(),
+        Some("spotify")
+    );
+    assert_eq!(
+        pick_reconnect(vec![player("vlc", true, true)], Some("spotify")),
+        None
+    );
 }

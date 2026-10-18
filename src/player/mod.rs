@@ -44,6 +44,8 @@ use windows as backend;
 
 pub use backend::{PlayerHandle, Session};
 
+use std::time::Duration;
+
 use anyhow::{Result, anyhow};
 use tokio::sync::mpsc;
 
@@ -159,6 +161,60 @@ pub fn match_name(available: &[String], wanted: &str) -> Option<String> {
                 .find(|p| p.to_lowercase().starts_with(&lower))
         })
         .cloned()
+}
+
+/// Which player to pick up after the one being followed has closed, or `None`
+/// to keep waiting.
+///
+/// Stricter than [`choose`]: a named player is taken as soon as it is back, but
+/// unnamed, only one with something loaded will do. Otherwise the browser's
+/// idle MPRIS entry would be picked up the moment the music player closed, and
+/// the display would sit on it while the real player came back next to it.
+pub fn pick_reconnect(states: Vec<PlayerState>, wanted: Option<&str>) -> Option<String> {
+    match wanted {
+        Some(w) => {
+            let names: Vec<String> = states.into_iter().map(|p| p.name).collect();
+            match_name(&names, w)
+        }
+        None => rank_players(states)
+            .filter(|p| p.playing || p.has_track)
+            .map(|p| p.name),
+    }
+}
+
+/// How often to read `Position` from the player. This is the safety net for
+/// players that do not emit `Seeked` — Spotify among them — not the main
+/// source of truth, so once a second is plenty.
+pub const POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+/// A followed player: its event stream, and a second handle for play/pause.
+/// Dropping it stops the event pump.
+pub struct Link {
+    pub name: String,
+    pub control: PlayerHandle,
+    pub events: EventRx,
+    pump: tokio::task::JoinHandle<()>,
+}
+
+impl Link {
+    pub async fn open(session: &Session, name: &str) -> Result<Self> {
+        let handle = session.connect(name).await?;
+        // The pump needs its own handle; the UI keeps one for play/pause.
+        let control = session.connect(name).await?;
+        let (events, pump) = handle.spawn(POLL_INTERVAL);
+        Ok(Self {
+            name: name.to_string(),
+            control,
+            events,
+            pump,
+        })
+    }
+}
+
+impl Drop for Link {
+    fn drop(&mut self) {
+        self.pump.abort();
+    }
 }
 
 /// Pick the player to follow, given a survey of what is running.

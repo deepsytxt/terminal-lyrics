@@ -1,7 +1,5 @@
 //! `lyrics` — giant block lyrics in the terminal, synced over MPRIS.
 
-use std::time::Duration;
-
 use anyhow::Result;
 use clap::Parser;
 
@@ -12,13 +10,8 @@ use terminal_lyrics::config::{self, ColorSource, Config, ConfigFile};
 use terminal_lyrics::lyrics::cache::Cache;
 use terminal_lyrics::lyrics::{self, Engine, Outcome};
 use terminal_lyrics::offsets::Offsets;
-use terminal_lyrics::player::{Session, Track};
+use terminal_lyrics::player::{Link, Session, Track};
 use terminal_lyrics::tui;
-
-/// How often to read `Position` from the player. This is the safety net for
-/// players that do not emit `Seeked` — Spotify among them — not the main
-/// source of truth, so once a second is plenty.
-const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -275,16 +268,10 @@ fn report_lyrics(cfg: &Config, found: &terminal_lyrics::lyrics::Found) {
 async fn cmd_run(cfg: Config) -> Result<()> {
     let session = Session::open().await?;
     let name = session.resolve(cfg.player.as_deref()).await?;
-    let handle = session.connect(&name).await?;
-
-    // The pump needs its own handle; the UI keeps one for play/pause.
-    let control = session.connect(&name).await?;
-    let (events, pump) = handle.spawn(POLL_INTERVAL);
+    let link = Link::open(&session, &name).await?;
 
     let engine = engine()?;
     let offsets = Offsets::new(config::offsets_path());
 
-    let result = tui::run(cfg, control, events, engine, offsets).await;
-    pump.abort();
-    result
+    tui::run(cfg, session, link, engine, offsets).await
 }
