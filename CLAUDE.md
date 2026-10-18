@@ -57,7 +57,7 @@ provider ordering and matching in full.
 ## Working on it
 
 ```bash
-cargo test                              # 213 tests, no terminal or player needed
+cargo test                              # 217 tests, no terminal or player needed
 cargo clippy --all-targets -- -D warnings
 cargo run --example pump_dump -- 15     # dump the live player event stream
 cargo run --example demo_gif            # re-render the README demo GIFs

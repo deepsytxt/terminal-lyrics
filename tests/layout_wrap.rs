@@ -1,6 +1,7 @@
 //! Wrapping and centring. The load-bearing property is that no character is
 //! ever dropped, however narrow the terminal gets.
 
+use ratatui::style::{Color, Modifier, Style};
 use terminal_lyrics::render::layout::{Layout, layout, layout_fitting};
 use terminal_lyrics::render::{LINE_GAP, Screen, SecondVoice, Theme, font, render};
 
@@ -257,8 +258,8 @@ fn a_partly_revealed_word_holds_the_place_of_the_whole_one() {
     assert!(inked_part < inked_whole, "the rest must be held back");
 }
 
-/// The rows a rendered screen actually inked, as `(row index, colours used)`.
-fn inked(text: &ratatui::text::Text<'_>) -> Vec<(usize, Vec<ratatui::style::Color>)> {
+/// The rows a rendered screen actually inked, as `(row index, styles used)`.
+fn inked(text: &ratatui::text::Text<'_>) -> Vec<(usize, Vec<Style>)> {
     text.lines
         .iter()
         .enumerate()
@@ -268,12 +269,21 @@ fn inked(text: &ratatui::text::Text<'_>) -> Vec<(usize, Vec<ratatui::style::Colo
                 .spans
                 .iter()
                 .filter(|s| s.content.trim() != "")
-                .filter_map(|s| s.style.fg)
+                .map(|s| s.style)
                 .collect();
             colours.dedup();
             (i, colours)
         })
         .collect()
+}
+
+/// Drawn at full strength in `colour`. A background vocal shares the line's
+/// colour and differs only in being faint, so the colour alone cannot say which
+/// voice a row belongs to.
+fn drawn_in(styles: &[Style], colour: Color) -> bool {
+    styles
+        .iter()
+        .any(|s| s.fg == Some(colour) && !s.add_modifier.contains(Modifier::DIM))
 }
 
 fn lyric<'a>(text: &'a str, second: Option<SecondVoice<'a>>) -> Screen<'a> {
@@ -310,7 +320,7 @@ fn the_second_voice_is_drawn_above_the_main_line() {
         .expect("the backing vocal is on screen");
     let first_lit = rows
         .iter()
-        .position(|(_, c)| c.contains(&Theme::default().unsung))
+        .position(|(_, c)| drawn_in(c, Theme::default().unsung))
         .expect("the line is on screen");
     assert!(
         first_dim < first_lit,
@@ -340,7 +350,7 @@ fn a_background_voice_is_dimmed_and_a_size_smaller() {
     let dim = rows.iter().filter(|(_, c)| c.contains(&theme.dim)).count();
     let lit = rows
         .iter()
-        .filter(|(_, c)| c.contains(&theme.unsung))
+        .filter(|(_, c)| drawn_in(c, theme.unsung))
         .count();
     assert_eq!(lit, 5, "the line is block art");
     assert_eq!(dim, 3, "the backing vocal is a size down, in compact");
@@ -369,12 +379,12 @@ fn a_duet_partner_is_swept_and_revealed_like_the_line() {
     // The partner's five rows are the first inked; the line sits below.
     let duet = inked(&screen(false));
     assert!(
-        duet[..5].iter().all(|(_, c)| c.contains(&theme.sung)),
+        duet[..5].iter().all(|(_, c)| drawn_in(c, theme.sung)),
         "the partner's sung half is highlighted: {duet:?}"
     );
     let backing = inked(&screen(true));
     assert!(
-        backing.iter().all(|(_, c)| !c.contains(&theme.sung)),
+        backing.iter().all(|(_, c)| !drawn_in(c, theme.sung)),
         "a backing vocal is never swept"
     );
 
@@ -454,7 +464,7 @@ fn both_voices_step_down_together_before_either_is_dropped() {
     );
     let lit = rows
         .iter()
-        .filter(|(_, c)| c.contains(&theme.unsung))
+        .filter(|(_, c)| drawn_in(c, theme.unsung))
         .count();
     assert!(
         lit < 5,

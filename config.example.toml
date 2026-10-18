@@ -50,7 +50,7 @@ providers = ["betterlyrics", "unison", "lyricsplus", "kugou", "lrclib", "youtube
 word_by_word = true
 
 # When two voices are singing at once, show both, stacked. A background vocal
-# is drawn above the line in grey and a size smaller; the other half of a duet
+# is drawn above the line, faint and a size smaller; the other half of a duet
 # is drawn full size, because it is a voice and not an echo. Set false to show
 # one line at a time, whichever came in most recently. The `v` key toggles it.
 overlapping_voices = true
@@ -58,8 +58,8 @@ overlapping_voices = true
 # Where the accent colour comes from. The default paints nothing itself: the
 # display is drawn in your terminal's own palette entries, so it already follows
 # whatever colour scheme the terminal is set to. Naming a source here repaints
-# the lyric text and nothing else: the sweep highlight and the status lines stay
-# terminal palette colours.
+# the lyric text, background vocals and status lines (the same colour, drawn
+# faint) and nothing else: the sweep highlight stays a terminal palette colour.
 #
 #   terminal        the terminal's palette, untouched (default)
 #   pywal           ~/.cache/wal/colors.json, as written by pywal
@@ -70,6 +70,12 @@ overlapping_voices = true
 # back to the terminal rather than refusing to start. A misspelt source is an
 # error, because that is a typo rather than a missing file.
 color_source = "terminal"
+
+# Background vocals and the status lines are the lyric colour with the
+# terminal's faint attribute, which stays readable on translucent and blurred
+# backgrounds. If your terminal draws faint too weak, too strong or not at all,
+# name a colour for them here instead.
+# dim_color = "#9a9cae"
 
 # When to highlight the sung part of what is on screen.
 #   "never"  — no highlight (default)

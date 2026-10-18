@@ -135,6 +135,7 @@ The flags worth knowing:
 | `--no-network` | use only those files and the cache |
 | `--offset-ms -250` | starting point for every song you have not tuned by hand |
 | `--color-source pywal` | take one accent colour from a palette |
+| `--dim-color '#9a9cae'` | a fixed colour for background vocals, instead of faint |
 
 ## Without the TUI
 
@@ -178,10 +179,16 @@ lyrics --color-source 'fixed:#8a2be2'  # one literal colour
 lyrics --color-source file:PATH        # any palette in pywal's JSON shape
 ```
 
-Only the lyric text is repainted; the sweep highlight and the status lines stay
-palette colours, so the display still follows the terminal everywhere else. A
+Only the lyric text is repainted, background vocals and status lines included,
+since they are the same colour drawn faint; the sweep highlight stays a palette
+colour, so the display still follows the terminal everywhere else. A
 palette that cannot be read falls back to the terminal rather than refusing to
 start, and `lyrics status` says when that has happened.
+
+Faint is the terminal's own attribute rather than a grey picked here, so it
+holds up on translucent and blurred backgrounds where the palette's dark grey
+all but disappears. If your terminal draws it too weak, too strong or not at
+all, `dim_color = "#rrggbb"` (or `--dim-color`) names the colour outright.
 
 ## How it works
 
@@ -278,7 +285,7 @@ that: it sweeps the syllables of the word on screen.
 
 Where two people are singing at once, both are on screen. A backing vocal — the
 `(ooh ooh)` behind the line, which the syllable-timed sources mark as its own
-voice — sits above the line in grey and a size smaller, because it is texture
+voice — sits above the line, faint and a size smaller, because it is texture
 rather than the thing being read; it is drawn whole and never swept, and the line
 underneath keeps the highlight. The other half of a duet is drawn full size and
 lit, since it is a voice and not an echo, and is treated exactly like the line:

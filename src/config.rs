@@ -90,6 +90,16 @@ pub fn accent_from_palette(text: &str) -> Option<[u8; 3]> {
     parse_hex(hex).ok()
 }
 
+/// `dim_color` in the config file: the same `#rrggbb` the flag takes, and a
+/// malformed one is an error at load rather than a colour that never appears.
+fn deserialize_hex<'de, D>(d: D) -> std::result::Result<Option<[u8; 3]>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = String::deserialize(d)?;
+    parse_hex(&raw).map(Some).map_err(serde::de::Error::custom)
+}
+
 impl std::str::FromStr for ColorSource {
     type Err = String;
 
@@ -192,6 +202,9 @@ pub struct Config {
     pub sweep: Sweep,
     /// Where the accent colour comes from. `Terminal` leaves the palette alone.
     pub color_source: ColorSource,
+    /// A literal colour for background vocals and the status lines. `None`
+    /// draws them as the lyric colour with the terminal's faint attribute.
+    pub dim_color: Option<[u8; 3]>,
     /// Show one word at a time when the lyrics carry real word timings.
     /// Ignored for line-level sources, which have nothing to split on.
     pub word_by_word: bool,
@@ -220,6 +233,7 @@ impl Default for Config {
             network: true,
             sweep: Sweep::Never,
             color_source: ColorSource::Terminal,
+            dim_color: None,
             word_by_word: true,
             overlapping_voices: true,
             tick_ms: 30,
@@ -241,6 +255,8 @@ pub struct ConfigFile {
     pub network: Option<bool>,
     pub sweep: Option<Sweep>,
     pub color_source: Option<ColorSource>,
+    #[serde(default, deserialize_with = "deserialize_hex")]
+    pub dim_color: Option<[u8; 3]>,
     pub word_by_word: Option<bool>,
     pub overlapping_voices: Option<bool>,
     pub tick_ms: Option<u64>,
@@ -293,6 +309,7 @@ impl Config {
                 .clone()
                 .or(file.color_source)
                 .unwrap_or(d.color_source),
+            dim_color: cli.dim_color.or(file.dim_color).or(d.dim_color),
             word_by_word: cli
                 .word_by_word_choice()
                 .or(file.word_by_word)

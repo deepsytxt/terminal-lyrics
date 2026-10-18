@@ -210,6 +210,9 @@ async fn cmd_status(cfg: &Config) -> Result<()> {
             (_, None) => "  (unreadable — using the terminal palette)".to_string(),
         }
     );
+    if let Some([r, g, b]) = cfg.dim_color {
+        println!("dimmed    #{r:02x}{g:02x}{b:02x}");
+    }
 
     if let Some(dir) = cfg.lrc_dir.as_deref()
         && let Some(found) = terminal_lyrics::lyrics::local_lookup(dir, &track)

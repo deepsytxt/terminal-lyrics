@@ -31,7 +31,10 @@ pub const VOICE_GAP: usize = 2;
 pub struct Theme {
     pub sung: Color,
     pub unsung: Color,
-    pub dim: Color,
+    /// Background vocals and the status lines. A whole style rather than a
+    /// colour, because the default is not a colour of its own but the lyric
+    /// colour drawn faint.
+    pub dim: Style,
 }
 
 impl Default for Theme {
@@ -41,7 +44,7 @@ impl Default for Theme {
             // then matches whatever scheme the user's terminal is set to.
             sung: Color::Cyan,
             unsung: Color::White,
-            dim: Color::DarkGray,
+            dim: faint(Color::White),
         }
     }
 }
@@ -55,8 +58,9 @@ impl Theme {
     /// parses, prints back, and never changes a pixel. `unsung` is what a line
     /// is drawn in almost all of the time.
     ///
-    /// `sung` and `dim` stay palette entries, so the highlight and the status
-    /// text still follow the terminal's own scheme — which is the property the
+    /// `dim` follows it, still faint, so a background vocal reads as a quieter
+    /// version of the line. `sung` stays a palette entry, so the highlight
+    /// still follows the terminal's own scheme — which is the property the
     /// default was chosen for, and the one a list of hardcoded themes would
     /// have cost.
     pub fn with_accent(accent: Option<[u8; 3]>) -> Self {
@@ -64,10 +68,34 @@ impl Theme {
             None => Self::default(),
             Some([r, g, b]) => Self {
                 unsung: Color::Rgb(r, g, b),
+                dim: faint(Color::Rgb(r, g, b)),
                 ..Self::default()
             },
         }
     }
+
+    /// Draw the dimmed text in exactly `colour` instead, for a terminal whose
+    /// faint attribute is too weak, too strong, or missing.
+    pub fn with_dim(self, colour: Option<[u8; 3]>) -> Self {
+        match colour {
+            None => self,
+            Some([r, g, b]) => Self {
+                dim: Style::new().fg(Color::Rgb(r, g, b)),
+                ..self
+            },
+        }
+    }
+}
+
+/// The lyric colour with the terminal's faint attribute, rather than a grey of
+/// our own. Palette 8 ("bright black", what `DarkGray` names) is often tuned to
+/// sit barely above the background, and on a translucent or blurred one it all
+/// but vanishes; faint is worked out by the terminal from the text and what is
+/// behind it, so it stays a readable step down from the line. A terminal that
+/// ignores faint draws it at full strength, and the smaller font still says it
+/// is the background voice.
+fn faint(colour: Color) -> Style {
+    Style::new().fg(colour).add_modifier(Modifier::DIM)
 }
 
 /// A second voice on screen alongside the line being read.
@@ -134,7 +162,7 @@ pub fn render(
             let (main, second) = fit_voices(text, *second, font, width, height);
             let mut rows: Vec<Line<'static>> = Vec::new();
             if let Some(s) = &second {
-                // Grey and flat for a background vocal. A duet partner is drawn
+                // Dimmed and flat for a background vocal. A duet partner is drawn
                 // exactly as the line is, so the two read as equals rather than
                 // as a line and its shadow.
                 let style = match s.background {
@@ -186,8 +214,8 @@ enum RowStyle {
     /// A lead voice, the line or a duet partner: swept characters bold in
     /// `sung`, the rest in `unsung`, and only the first `reveal` inked at all.
     Sweep { highlight: usize, reveal: usize },
-    /// A background vocal: one colour, all of it inked, never bold.
-    Flat(Color),
+    /// A background vocal: one style, all of it inked, never bold.
+    Flat(Style),
 }
 
 /// One voice laid out at the size it will be drawn.
@@ -288,7 +316,7 @@ fn block_rows(layout: &Layout, style: RowStyle, width: usize, theme: Theme) -> V
                             Style::default().fg(theme.unsung)
                         },
                     ),
-                    RowStyle::Flat(colour) => (true, Style::default().fg(colour)),
+                    RowStyle::Flat(style) => (true, style),
                 };
                 // Not reached yet: hold the space, draw nothing in it.
                 let art = match reached {
@@ -327,7 +355,7 @@ fn status_text(
         rows.push(centred(label, width, Style::default().fg(theme.unsung)));
         rows.push(Line::default());
     }
-    rows.push(centred(message, width, Style::default().fg(theme.dim)));
+    rows.push(centred(message, width, theme.dim));
     vertically_centre(rows, height, (0, 0))
 }
 

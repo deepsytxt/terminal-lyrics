@@ -60,6 +60,11 @@ pub struct Cli {
     #[arg(long, value_name = "SOURCE", value_parser = parse_color_source)]
     pub color_source: Option<ColorSource>,
 
+    /// Draw background vocals and the status lines in this `#rrggbb` colour,
+    /// instead of the lyric colour made faint by the terminal.
+    #[arg(long, value_name = "#RRGGBB", value_parser = parse_hex)]
+    pub dim_color: Option<[u8; 3]>,
+
     /// Always highlight words as they are sung, even when the timings are
     /// interpolated or a single word is on screen. By default the highlight
     /// appears only for whole lines of lyrics that carry real per-word
@@ -132,6 +137,11 @@ fn parse_case(raw: &str) -> Result<Case, String> {
 /// config key reject the same things with the same message.
 fn parse_color_source(raw: &str) -> Result<ColorSource, String> {
     raw.parse()
+}
+
+/// And for `--dim-color`, which is the same `#rrggbb` as `fixed:`.
+fn parse_hex(raw: &str) -> Result<[u8; 3], String> {
+    crate::config::parse_hex(raw)
 }
 
 impl Cli {

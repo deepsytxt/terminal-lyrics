@@ -88,7 +88,7 @@ impl App {
         // Read once at startup rather than per frame: a palette on disk is not
         // going to change mid-song, and the draw loop should not touch the
         // filesystem.
-        let theme = Theme::with_accent(cfg.color_source.accent());
+        let theme = Theme::with_accent(cfg.color_source.accent()).with_dim(cfg.dim_color);
         let engine = SyncEngine::new(
             cfg.offset_ms,
             Duration::from_millis(cfg.resync_threshold_ms),
@@ -440,10 +440,7 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
                 width: area.width,
                 height: 1,
             };
-            frame.render_widget(
-                Paragraph::new(status).style(ratatui::style::Style::default().fg(app.theme.dim)),
-                strip,
-            );
+            frame.render_widget(Paragraph::new(status).style(app.theme.dim), strip);
         }
     })?;
     Ok(())

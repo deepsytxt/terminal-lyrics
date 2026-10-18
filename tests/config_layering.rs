@@ -24,7 +24,7 @@ fn resolve(file_toml: &str, args: &[&str]) -> Config {
     Config::resolve(file, &from_args(args))
 }
 
-const FULL_FILE: &str = r#"
+const FULL_FILE: &str = r##"
 player = "file-player"
 font = "file-font"
 case = "original"
@@ -33,12 +33,13 @@ lrc_dir = "/file/lrc"
 network = false
 sweep = "always"
 color_source = "fixed:#ff6600"
+dim_color = "#8888aa"
 word_by_word = false
 overlapping_voices = false
 tick_ms = 77
 resync_threshold_ms = 333
 providers = ["kugou", "lrclib"]
-"#;
+"##;
 
 #[test]
 fn defaults_apply_with_no_file_and_no_flags() {
@@ -81,6 +82,7 @@ fn file_overrides_every_default() {
     assert!(!cfg.network);
     assert_eq!(cfg.sweep, Sweep::Always);
     assert_eq!(cfg.color_source, ColorSource::Fixed([0xff, 0x66, 0x00]));
+    assert_eq!(cfg.dim_color, Some([0x88, 0x88, 0xaa]));
     assert!(!cfg.word_by_word);
     assert!(!cfg.overlapping_voices);
     assert_eq!(cfg.tick_ms, 77);
@@ -92,6 +94,7 @@ fn file_overrides_every_default() {
     assert_ne!(cfg.tick_ms, d.tick_ms);
     assert_ne!(cfg.sweep, d.sweep);
     assert_ne!(cfg.color_source, d.color_source);
+    assert_ne!(cfg.dim_color, d.dim_color);
     assert_ne!(cfg.word_by_word, d.word_by_word);
     assert_ne!(cfg.overlapping_voices, d.overlapping_voices);
     assert_ne!(cfg.network, d.network);
@@ -348,4 +351,22 @@ fn an_unknown_colour_source_is_rejected_by_the_config_file_too() {
     assert!(ConfigFile::parse(r#"color_source = "pywall""#).is_err());
     assert!(ConfigFile::parse(r#"color_source = "fixed:#zzz""#).is_err());
     assert!(ConfigFile::parse("color_source = 4").is_err());
+}
+
+#[test]
+fn flag_beats_file_for_the_dim_colour() {
+    let file = r##"dim_color = "#8888aa""##;
+    assert_eq!(
+        resolve(file, &["--dim-color", "#445566"]).dim_color,
+        Some([0x44, 0x55, 0x66])
+    );
+    assert_eq!(resolve(file, &[]).dim_color, Some([0x88, 0x88, 0xaa]));
+    assert_eq!(resolve("", &[]).dim_color, None, "faint by default");
+}
+
+#[test]
+fn a_malformed_dim_colour_is_rejected_rather_than_never_drawn() {
+    assert!(ConfigFile::parse(r#"dim_color = "grey""#).is_err());
+    assert!(ConfigFile::parse(r##"dim_color = "#888""##).is_err());
+    assert!(ConfigFile::parse("dim_color = 8").is_err());
 }

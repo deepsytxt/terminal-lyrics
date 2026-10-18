@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 
+use ratatui::style::Modifier;
 use terminal_lyrics::config::{ColorSource, accent_from_palette, parse_hex};
 use terminal_lyrics::render::{Theme, ThemeColor};
 
@@ -28,7 +29,39 @@ fn an_accent_repaints_only_the_lyric_text() {
         themed.sung, d.sung,
         "the sweep highlight stays a palette colour"
     );
-    assert_eq!(themed.dim, d.dim, "so does the dimmed text");
+    assert_eq!(
+        themed.dim.fg,
+        Some(themed.unsung),
+        "dimmed text is a quieter version of the line, so it follows the accent"
+    );
+    assert_ne!(themed.dim, d.dim);
+}
+
+#[test]
+fn dimmed_text_is_the_lyric_colour_made_faint_not_palette_grey() {
+    // Palette 8 is often tuned to sit just above the background, and on a
+    // translucent or blurred one a background vocal drawn in it all but
+    // vanishes. Faint lets the terminal work the step down out from the text.
+    let d = Theme::default();
+    assert_eq!(d.dim.fg, Some(d.unsung));
+    assert!(d.dim.add_modifier.contains(Modifier::DIM));
+    assert_ne!(d.dim.fg, Some(ThemeColor::DarkGray));
+}
+
+#[test]
+fn a_dim_colour_replaces_faint_with_exactly_that_colour() {
+    let themed = Theme::with_accent(Some([0xff, 0x66, 0x00])).with_dim(Some([0x88, 0x88, 0x99]));
+    assert_eq!(themed.dim.fg, Some(ThemeColor::Rgb(0x88, 0x88, 0x99)));
+    assert!(
+        !themed.dim.add_modifier.contains(Modifier::DIM),
+        "a colour the user picked is drawn as picked, not faded further"
+    );
+    assert_eq!(
+        themed.unsung,
+        ThemeColor::Rgb(0xff, 0x66, 0x00),
+        "and the line keeps its accent"
+    );
+    assert_eq!(Theme::default().with_dim(None), Theme::default());
 }
 
 #[test]
