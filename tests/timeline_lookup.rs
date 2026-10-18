@@ -268,7 +268,13 @@ const WORD_TIMED_DUET: &str = "\
 fn second_word(t: &Timeline, index: usize, pos: f64) -> Option<String> {
     let s = t.secondary(index, pos)?;
     let w = t.second_active_word(index, pos)?;
-    Some(s.text.chars().skip(w.range.start).take(w.range.len()).collect())
+    Some(
+        s.text
+            .chars()
+            .skip(w.range.start)
+            .take(w.range.len())
+            .collect(),
+    )
 }
 
 #[test]
