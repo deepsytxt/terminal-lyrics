@@ -94,6 +94,16 @@ pub struct Cli {
     #[arg(long, overrides_with = "overlapping_voices")]
     pub single_voice: bool,
 
+    /// Draw spectrum bars from `cava` under the lyrics, reaching halfway up
+    /// from the status line. This is the default when cava is installed;
+    /// `--no-visualizer` turns it off.
+    #[arg(long, overrides_with = "no_visualizer")]
+    pub visualizer: bool,
+
+    /// No spectrum bars.
+    #[arg(long, overrides_with = "visualizer")]
+    pub no_visualizer: bool,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -158,6 +168,16 @@ impl Cli {
     /// defer to the config file and then the default.
     pub fn overlapping_voices_choice(&self) -> Option<bool> {
         match (self.overlapping_voices, self.single_voice) {
+            (true, false) => Some(true),
+            (false, true) => Some(false),
+            _ => None,
+        }
+    }
+
+    /// `--visualizer` / `--no-visualizer` as an override, or `None` to defer
+    /// to the config file and then the default.
+    pub fn visualizer_choice(&self) -> Option<bool> {
+        match (self.visualizer, self.no_visualizer) {
             (true, false) => Some(true),
             (false, true) => Some(false),
             _ => None,

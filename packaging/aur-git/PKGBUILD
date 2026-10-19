@@ -10,6 +10,8 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/mgtaco/terminal-lyrics"
 license=('MIT')
 depends=('gcc-libs')
+# Run alongside, not linked: without it the bars are simply not drawn.
+optdepends=('cava: spectrum bars under the lyrics')
 # `cmake` and a C compiler are for aws-lc-sys, which rustls pulls in and which
 # builds BoringSSL from source.
 makedepends=('git' 'cargo' 'cmake')

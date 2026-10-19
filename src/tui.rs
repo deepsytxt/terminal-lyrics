@@ -17,12 +17,13 @@ use ratatui::crossterm::event::{
 use ratatui::widgets::Paragraph;
 use tokio::sync::mpsc;
 
+use crate::cava::{self, Cava};
 use crate::config::Config;
 use crate::lyrics::{Engine, Outcome, Source};
 use crate::offsets::Offsets;
 use crate::player::{Link, PlayerEvent, PlayerHandle, Session, Track, pick_reconnect};
 use crate::render::font::{self, Font};
-use crate::render::{Screen, SecondVoice, Theme};
+use crate::render::{Screen, SecondVoice, Theme, bars};
 use crate::sync::{Change, SyncEngine};
 use crate::timeline::{Position, Timeline};
 
@@ -79,6 +80,9 @@ pub struct App {
     theme: Theme,
     /// Sticky message shown briefly after a keypress, e.g. the new offset.
     notice: Option<(String, Instant)>,
+    /// Why cava could not be started, once it has failed. It is not tried
+    /// again: a cava that is not installed will not be on the next frame.
+    cava_error: Option<String>,
     should_quit: bool,
 }
 
@@ -102,6 +106,7 @@ impl App {
             font,
             theme,
             notice: None,
+            cava_error: None,
             should_quit: false,
         }
     }
@@ -222,8 +227,12 @@ async fn run_inner(
     let mut retry = tokio::time::interval(RECONNECT_INTERVAL);
     retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+    // `None` while the bars are off, or do not fit.
+    let mut cava: Option<Cava> = None;
+
     loop {
-        draw(&mut terminal, &app)?;
+        sync_visualizer(&mut app, &mut cava, terminal.size()?);
+        draw(&mut terminal, &app, cava.as_ref())?;
         if app.should_quit {
             return Ok(());
         }
@@ -278,6 +287,8 @@ async fn run_inner(
                 }
             }
 
+            _ = next_frame(&mut cava) => {}
+
             _ = ticker.tick() => {}
 
             _ = &mut sigterm => {
@@ -293,6 +304,51 @@ async fn next_event(link: &mut Option<Link>) -> PlayerEvent {
     match link {
         Some(l) => l.events.recv().await.unwrap_or(PlayerEvent::Gone),
         None => std::future::pending().await,
+    }
+}
+
+/// The next frame of bars; with no cava running, this never fires.
+async fn next_frame(cava: &mut Option<Cava>) {
+    match cava {
+        Some(c) => c.changed().await,
+        None => std::future::pending().await,
+    }
+}
+
+/// How many bars fit the window as it is now, if they are wanted at all.
+fn visualizer_bars(app: &App, size: ratatui::layout::Size) -> Option<usize> {
+    if !app.cfg.visualizer || app.cava_error.is_some() {
+        return None;
+    }
+    Some(bars::bar_count(usize::from(size.width))).filter(|&n| n > 0)
+}
+
+/// Start, stop or restart cava so it matches the window. cava is told its bar
+/// count up front, so a resize that changes it means a new cava; one that does
+/// not leaves it running. The height is not cava's business: it is worked out
+/// per frame, from the room the lyrics leave.
+fn sync_visualizer(app: &mut App, cava: &mut Option<Cava>, size: ratatui::layout::Size) {
+    let want = visualizer_bars(app, size);
+    if cava.as_ref().map(|c| c.bars) == want {
+        return;
+    }
+    // The old one goes first, so two are never capturing at once.
+    *cava = None;
+    let Some(bars) = want else {
+        return;
+    };
+    // As often as the screen is redrawn, within what cava will do.
+    let framerate = (1000 / app.cfg.tick_ms).clamp(10, 60) as u32;
+    match Cava::spawn(bars, framerate) {
+        Ok(c) => *cava = Some(c),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            app.cava_error = Some("cava is not installed".to_string());
+        }
+        Err(e) => {
+            let msg = format!("cava failed to start: {e}");
+            app.note(msg.clone());
+            app.cava_error = Some(msg);
+        }
     }
 }
 
@@ -313,7 +369,7 @@ fn signal_stream() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + S
     })
 }
 
-fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
+fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Result<()> {
     terminal.draw(|frame| {
         let area = frame.area();
         let now = Instant::now();
@@ -458,14 +514,35 @@ fn draw(terminal: &mut DefaultTerminal, app: &App) -> Result<()> {
             },
         };
 
-        let text = crate::render::render(
-            &screen,
-            &app.font,
-            area.width,
-            area.height.saturating_sub(1),
-            app.theme,
-        );
+        let lyric_height = area.height.saturating_sub(1);
+        let text = crate::render::render(&screen, &app.font, area.width, lyric_height, app.theme);
+        // Where the lyrics end: the text is padded at the top to centre it and
+        // not at the bottom, so its length is the row under its last line.
+        let lyric_bottom = u16::try_from(text.lines.len())
+            .unwrap_or(u16::MAX)
+            .min(lyric_height);
         frame.render_widget(Paragraph::new(text), area);
+
+        // The bars stand on the status line and reach halfway up the empty
+        // space between it and the lyrics, so they never crowd the text.
+        if let Some(c) = cava {
+            let rows = (lyric_height - lyric_bottom) / 2;
+            if rows > 0 {
+                let strip = ratatui::layout::Rect {
+                    y: area.y + lyric_height - rows,
+                    height: rows,
+                    ..area
+                };
+                let text = bars::render(
+                    &c.levels(),
+                    cava::MAX_LEVEL,
+                    usize::from(rows),
+                    usize::from(area.width),
+                    app.theme.dim,
+                );
+                frame.render_widget(Paragraph::new(text), strip);
+            }
+        }
 
         // One-line status strip along the bottom.
         if let Some(status) = status_line(app)
@@ -658,6 +735,15 @@ async fn handle_key(
             } else {
                 "one voice"
             });
+        }
+        KeyCode::Char('b') => {
+            app.cfg.visualizer = !app.cfg.visualizer;
+            let msg = match (&app.cava_error, app.cfg.visualizer) {
+                (Some(e), true) => e.clone(),
+                (None, true) => "visualizer on".to_string(),
+                (_, false) => "visualizer off".to_string(),
+            };
+            app.note(msg);
         }
         KeyCode::Char('r') => {
             if let Some(track) = app.engine.track().cloned() {

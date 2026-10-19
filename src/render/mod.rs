@@ -3,6 +3,7 @@
 //! Everything here is pure: state in, a ratatui `Text` out. The terminal is
 //! only touched by `tui.rs`, so the layout can be unit-tested.
 
+pub mod bars;
 pub mod case;
 pub mod font;
 pub mod layout;

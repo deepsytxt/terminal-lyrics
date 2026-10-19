@@ -212,6 +212,10 @@ pub struct Config {
     /// background vocal, or the other half of a duet. Off shows one line at a
     /// time, whichever came in most recently.
     pub overlapping_voices: bool,
+    /// Spectrum bars from `cava` under the lyrics, standing on the status line
+    /// and reaching halfway up to the text. Nothing is drawn when cava is not
+    /// installed.
+    pub visualizer: bool,
     /// Redraw interval. Only the sweep highlight moves between player events.
     pub tick_ms: u64,
     /// How far the predicted position may drift from the player's own
@@ -236,6 +240,7 @@ impl Default for Config {
             dim_color: None,
             word_by_word: true,
             overlapping_voices: true,
+            visualizer: true,
             tick_ms: 30,
             resync_threshold_ms: 250,
             providers: Provider::DEFAULT_ORDER.to_vec(),
@@ -259,6 +264,7 @@ pub struct ConfigFile {
     pub dim_color: Option<[u8; 3]>,
     pub word_by_word: Option<bool>,
     pub overlapping_voices: Option<bool>,
+    pub visualizer: Option<bool>,
     pub tick_ms: Option<u64>,
     pub resync_threshold_ms: Option<u64>,
     /// An unknown name here is an error, not a silent skip: it would otherwise
@@ -318,6 +324,10 @@ impl Config {
                 .overlapping_voices_choice()
                 .or(file.overlapping_voices)
                 .unwrap_or(d.overlapping_voices),
+            visualizer: cli
+                .visualizer_choice()
+                .or(file.visualizer)
+                .unwrap_or(d.visualizer),
             tick_ms: file.tick_ms.unwrap_or(d.tick_ms).clamp(10, 1000),
             resync_threshold_ms: file
                 .resync_threshold_ms

@@ -83,8 +83,17 @@ color_source = "terminal"
 #   "always" — also for line-level lyrics, where the highlight is an estimate
 sweep = "never"
 
+# Spectrum bars from cava under the lyrics. They stand on the status line and
+# reach halfway up the space between it and the text, so a long line that wraps
+# gets shorter bars rather than bars over the lyrics. Your own
+# ~/.config/cava/config supplies the input (which source is captured) and the
+# sound settings; the bar count and output are set here. Without cava installed
+# nothing is drawn. The `b` key toggles it.
+visualizer = true
+
 # Redraw interval in milliseconds (10–1000). Only the sweep moves between
 # player events, and unchanged cells are not redrawn at all.
+# cava is asked for frames at the same rate, held between 10 and 60 a second.
 tick_ms = 30
 
 # How far the predicted position may drift from the player's own reading

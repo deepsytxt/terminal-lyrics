@@ -7,6 +7,7 @@
 // stop working. Dead flags are silent for a long time otherwise.
 #![warn(unused, dead_code, unreachable_pub)]
 
+pub mod cava;
 pub mod cli;
 pub mod clock;
 pub mod config;

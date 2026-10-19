@@ -36,6 +36,7 @@ color_source = "fixed:#ff6600"
 dim_color = "#8888aa"
 word_by_word = false
 overlapping_voices = false
+visualizer = false
 tick_ms = 77
 resync_threshold_ms = 333
 providers = ["kugou", "lrclib"]
@@ -85,6 +86,7 @@ fn file_overrides_every_default() {
     assert_eq!(cfg.dim_color, Some([0x88, 0x88, 0xaa]));
     assert!(!cfg.word_by_word);
     assert!(!cfg.overlapping_voices);
+    assert!(!cfg.visualizer);
     assert_eq!(cfg.tick_ms, 77);
     assert_eq!(cfg.resync_threshold_ms, 333);
     assert_eq!(cfg.providers, vec![Provider::KuGou, Provider::LrcLib]);
@@ -97,6 +99,7 @@ fn file_overrides_every_default() {
     assert_ne!(cfg.dim_color, d.dim_color);
     assert_ne!(cfg.word_by_word, d.word_by_word);
     assert_ne!(cfg.overlapping_voices, d.overlapping_voices);
+    assert_ne!(cfg.visualizer, d.visualizer);
     assert_ne!(cfg.network, d.network);
     assert_ne!(cfg.providers, d.providers);
 }
@@ -287,6 +290,15 @@ fn overlapping_voice_flags_override_the_file() {
         &["--overlapping-voices", "--single-voice"]
     )));
     assert!(on(resolve("", &["--single-voice", "--overlapping-voices"])));
+}
+
+#[test]
+fn visualizer_flags_override_the_file() {
+    assert!(resolve("", &[]).visualizer, "on wherever cava is installed");
+    assert!(resolve("visualizer = false", &["--visualizer"]).visualizer);
+    assert!(!resolve("visualizer = true", &["--no-visualizer"]).visualizer);
+    assert!(!resolve("visualizer = false", &[]).visualizer);
+    assert!(!resolve("", &["--visualizer", "--no-visualizer"]).visualizer);
 }
 
 #[test]
