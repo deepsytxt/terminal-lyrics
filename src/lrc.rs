@@ -42,11 +42,11 @@ pub struct Secondary {
     /// When the source stops it.
     pub end: f64,
     pub text: String,
-    /// The duet partner's own word timings, measured in its `text`, so it can
-    /// go word by word alongside the line instead of forcing both back to
-    /// whole phrases. Always empty for a background vocal: that is texture,
-    /// drawn whole and never swept, and leaving the words out makes that a
-    /// property of the model rather than a rule someone has to remember.
+    /// The voice's own word timings, measured in its `text`, so it can go word
+    /// by word alongside the line instead of forcing both back to whole
+    /// phrases. A background vocal keeps its words too, and steps through them
+    /// with the line; it is still never swept — see
+    /// [`crate::timeline::Timeline::second_highlight_chars`].
     pub words: Vec<Word>,
     /// Background vocals are dimmed and drawn a size smaller. The other half of
     /// a duet is neither: it is a co-equal voice.
@@ -565,25 +565,39 @@ fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
             .and_then(|p| lines.iter().position(|l| (l.start - p).abs() <= SAME_TIME))
             .or_else(|| lines.iter().rposition(|l| l.start <= bg.start));
         let Some(target) = target else { continue };
-        if bg.text.trim().is_empty() {
-            continue;
-        }
         let end = bg.sung_end().unwrap_or(bg.start + MIN_SECONDARY_HOLD);
-        let text = unwrap_brackets(bg.text.trim());
-        if text.is_empty() {
+        let kept = unwrap_brackets(&bg.text);
+        if kept.is_empty() {
             continue;
         }
+        let text: String = bg.text.chars().skip(kept.start).take(kept.len()).collect();
+        // The words were measured in the text as written, brackets and all;
+        // rebase them onto what is left. A word that was nothing but a bracket
+        // has nothing left to show and goes with it.
+        let words = bg
+            .words
+            .iter()
+            .filter_map(|w| {
+                let start = w.range.start.clamp(kept.start, kept.end) - kept.start;
+                let stop = w.range.end.clamp(kept.start, kept.end) - kept.start;
+                (stop > start).then(|| Word {
+                    range: start..stop,
+                    ..w.clone()
+                })
+            })
+            .collect();
         lines[target].secondary.push(Secondary {
             start: bg.start,
             end,
             text,
-            words: Vec::new(),
+            words,
             background: true,
         });
     }
 }
 
 /// Take the brackets off a background phrase: `"(ooh ooh)"` is `ooh ooh`.
+/// Returns the char range of `text` that is kept, surrounding space trimmed.
 ///
 /// Sources write a backing vocal in parentheses because plain text has no other
 /// way to say "this is not the line". We do: it is dimmed, drawn a size smaller,
@@ -594,19 +608,32 @@ fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
 /// Only a matched pair wrapping the whole phrase comes off. A stray bracket is
 /// left alone: it is either part of the words or a phrase split across lines,
 /// and neither is ours to tidy.
-fn unwrap_brackets(text: &str) -> String {
-    let mut chars = text.chars();
-    let closer = match (chars.next(), chars.next_back()) {
-        (Some('('), Some(')')) => ')',
-        (Some('（'), Some('）')) => '）',
-        (Some('['), Some(']')) => ']',
-        _ => return text.to_string(),
+fn unwrap_brackets(text: &str) -> Range<usize> {
+    let chars: Vec<char> = text.chars().collect();
+    let trim = |mut r: Range<usize>| {
+        while r.start < r.end && chars[r.start].is_whitespace() {
+            r.start += 1;
+        }
+        while r.end > r.start && chars[r.end - 1].is_whitespace() {
+            r.end -= 1;
+        }
+        r
     };
-    let inner = chars.as_str().trim();
+    let outer = trim(0..chars.len());
+    if outer.len() < 2 {
+        return outer;
+    }
+    let closer = match (chars[outer.start], chars[outer.end - 1]) {
+        ('(', ')') => ')',
+        ('（', '）') => '）',
+        ('[', ']') => ']',
+        _ => return outer,
+    };
+    let inner = trim(outer.start + 1..outer.end - 1);
     // A pair that closes and reopens midway ("(oh) and (ah)") is not a wrapper.
-    match inner.contains(closer) {
-        true => text.to_string(),
-        false => inner.to_string(),
+    match chars[inner.clone()].contains(&closer) {
+        true => outer,
+        false => inner,
     }
 }
 

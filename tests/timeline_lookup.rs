@@ -246,9 +246,7 @@ fn a_very_short_background_phrase_is_held_long_enough_to_read() {
 }
 
 #[test]
-fn a_background_vocal_never_gets_the_sweep_or_an_active_word() {
-    // It is texture, drawn whole. It carries no words at all, so there is
-    // nothing for either to land on.
+fn a_background_vocal_without_word_timings_is_drawn_whole() {
     let t = tl(WITH_SECOND_VOICE);
     let Position::Line { index } = t.locate(13.0) else {
         panic!("the first line is up")
@@ -257,6 +255,26 @@ fn a_background_vocal_never_gets_the_sweep_or_an_active_word() {
     assert!(s.words.is_empty());
     assert_eq!(t.second_active_word(index, 13.0), None);
     assert_eq!(t.second_highlight_chars(index, 13.0), 0);
+}
+
+/// A word-timed line with a word-timed backing vocal over it.
+const WORD_TIMED_BACKGROUND: &str = "\
+[00:10.000]<00:10.000>first <00:12.000>line <00:14.000>here<00:20.000>
+[00:12.000][bg:00:10.000]<00:12.000>(ooh <00:13.000>yeah)<00:16.000>
+[00:20.000]second line
+";
+
+#[test]
+fn a_background_vocal_goes_word_by_word_but_is_never_swept() {
+    let t = tl(WORD_TIMED_BACKGROUND);
+    let Position::Line { index } = t.locate(12.5) else {
+        panic!("the first line is up")
+    };
+    let s = t.secondary(index, 12.5).expect("the backing vocal is up");
+    assert_eq!(s.text, "ooh yeah", "the brackets are off");
+    assert_eq!(second_word(&t, index, 12.5).as_deref(), Some("ooh"));
+    assert_eq!(second_word(&t, index, 13.5).as_deref(), Some("yeah"));
+    assert_eq!(t.second_highlight_chars(index, 13.5), 0, "it is texture");
 }
 
 /// Two word-timed voices singing over each other for two and a half seconds.

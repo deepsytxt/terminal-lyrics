@@ -107,8 +107,9 @@ pub struct SecondVoice<'a> {
     /// sits over. The other half of a duet is neither — it is a co-equal voice.
     pub background: bool,
     /// As for [`Screen::Lyric`]: how far the sweep has got, and how much is
-    /// inked. A duet partner goes word by word and sweeps just like the line;
-    /// both are ignored for a background vocal, which is always drawn whole.
+    /// inked. A duet partner goes word by word and sweeps just like the line.
+    /// A background vocal goes word by word too, but is never swept, so only
+    /// `reveal` applies to it.
     pub highlight: usize,
     pub reveal: usize,
 }
@@ -167,7 +168,10 @@ pub fn render(
                 // exactly as the line is, so the two read as equals rather than
                 // as a line and its shadow.
                 let style = match s.background {
-                    true => RowStyle::Flat(theme.dim),
+                    true => RowStyle::Flat {
+                        style: theme.dim,
+                        reveal: s.reveal,
+                    },
                     false => RowStyle::Sweep {
                         highlight: s.highlight,
                         reveal: s.reveal,
@@ -215,8 +219,9 @@ enum RowStyle {
     /// A lead voice, the line or a duet partner: swept characters bold in
     /// `sung`, the rest in `unsung`, and only the first `reveal` inked at all.
     Sweep { highlight: usize, reveal: usize },
-    /// A background vocal: one style, all of it inked, never bold.
-    Flat(Style),
+    /// A background vocal: one style, never bold, and only the first `reveal`
+    /// inked.
+    Flat { style: Style, reveal: usize },
 }
 
 /// One voice laid out at the size it will be drawn.
@@ -317,7 +322,7 @@ fn block_rows(layout: &Layout, style: RowStyle, width: usize, theme: Theme) -> V
                             Style::default().fg(theme.unsung)
                         },
                     ),
-                    RowStyle::Flat(style) => (true, style),
+                    RowStyle::Flat { style, reveal } => (cell.src < reveal, style),
                 };
                 // Not reached yet: hold the space, draw nothing in it.
                 let art = match reached {

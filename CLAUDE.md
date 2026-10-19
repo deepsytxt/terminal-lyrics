@@ -25,11 +25,14 @@ provider ordering and matching in full.
 - Everything past the lookup consumes enhanced LRC: `display::to_lrc` turns the
   provider model into the `[bg:]`/word-tag form `crate::lrc` parses, so the
   duet, background and sweep logic is shared by every source.
-- A background vocal is drawn whole and never swept; its `Secondary` carries no
-  `words`, so that is structural. A duet partner is a co-equal voice: it keeps
-  its source line's `words` and gets the same split and sweep as the line, so
-  in word-by-word mode both voices step through their words together. Only a
-  partner without word timings sends both back to whole phrases.
+- A background vocal is never swept (`second_highlight_chars` is 0 for one),
+  but it keeps its `words`, rebased past the brackets that come off, and in
+  word-by-word mode steps through them with the line; one without word timings
+  is drawn whole and never holds the line back from splitting. A duet partner
+  is a co-equal voice: it keeps its source line's `words` and gets the same
+  split and sweep as the line, so in word-by-word mode both voices step through
+  their words together. Only a partner without word timings sends both back to
+  whole phrases.
 - Overlap only means a duet past `MIN_DUET_OVERLAP`; below it, one line's tail
   is running into the next, which is most overlap in the wild.
 - Player picking stays platform-neutral: playing beats has-a-track beats
@@ -57,7 +60,7 @@ provider ordering and matching in full.
 ## Working on it
 
 ```bash
-cargo test                              # 229 tests, no terminal or player needed
+cargo test                              # 231 tests, no terminal or player needed
 cargo clippy --all-targets -- -D warnings
 cargo run --example pump_dump -- 15     # dump the live player event stream
 cargo run --example demo_gif            # re-render the README demo GIFs

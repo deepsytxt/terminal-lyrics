@@ -349,3 +349,31 @@ fn only_a_pair_wrapping_the_whole_background_comes_off() {
         .collect();
     assert_eq!(voices, ["(ooh", "(oh) and (ah)", "ooh ooh"]);
 }
+
+#[test]
+fn a_background_vocal_keeps_its_words_measured_without_the_brackets() {
+    // The tags were written around the brackets; once they come off, every
+    // word has to point at the same letters it did before.
+    let l = lrc::parse(
+        "[00:10.000]<00:10.000>the <00:12.000>line<00:20.000>\n\
+         [00:12.000][bg:00:10.000]<00:12.000>( ooh <00:13.000>yeah )<00:16.000>\n",
+    );
+    let s = &l.lines[0].secondary[0];
+    assert_eq!(s.text, "ooh yeah");
+    let words: Vec<String> = s
+        .words
+        .iter()
+        .map(|w| {
+            s.text
+                .chars()
+                .skip(w.range.start)
+                .take(w.range.len())
+                .collect()
+        })
+        .collect();
+    assert_eq!(words, ["ooh", "yeah"]);
+    assert!(
+        (s.words[1].end - 16.0).abs() < 0.001,
+        "closed at its own end"
+    );
+}

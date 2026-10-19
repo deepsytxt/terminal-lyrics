@@ -298,11 +298,12 @@ that: it sweeps the syllables of the word on screen.
 Where two people are singing at once, both are on screen. A backing vocal — the
 `(ooh ooh)` behind the line, which the syllable-timed sources mark as its own
 voice — sits above the line, faint and a size smaller, because it is texture
-rather than the thing being read; it is drawn whole and never swept, and the line
-underneath keeps the highlight. The other half of a duet is drawn full size and
-lit, since it is a voice and not an echo, and is treated exactly like the line:
-in word-by-word mode both voices show the word each is singing, side by side in
-time, and the sweep runs across both. Only when the partner has no word timings
+rather than the thing being read. In word-by-word mode it steps through its own
+words alongside the line's when the source times them, but it is never swept:
+the line underneath keeps the highlight. The other half of a duet is drawn full
+size and lit, since it is a voice and not an echo, and is treated exactly like
+the line: in word-by-word mode both voices show the word each is singing, side by
+side in time, and the sweep runs across both. Only when the partner has no word timings
 of its own are the two shown as whole phrases.
 
 Overlap alone is not enough to call something a duet. Across 39 files from the

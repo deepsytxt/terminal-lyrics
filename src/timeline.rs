@@ -116,9 +116,10 @@ impl Timeline {
         active_word_in(&line.text, &line.words, pos)
     }
 
-    /// [`Timeline::active_word`] for the duet partner singing over line `index`.
+    /// [`Timeline::active_word`] for the second voice singing over line `index`:
+    /// a duet partner, or a background vocal with word timings of its own.
     ///
-    /// `None` for a background vocal, which has no words: it is drawn whole.
+    /// `None` for a voice without them, which is drawn whole.
     pub fn second_active_word(&self, index: usize, pos: f64) -> Option<ActiveWord> {
         let s = self.secondary(index, pos)?;
         active_word_in(&s.text, &s.words, pos)
@@ -128,8 +129,11 @@ impl Timeline {
     /// `index`. Only real word timings move it: the partner's window starts
     /// where it was cut off, not where it began, so there is nothing honest to
     /// interpolate across.
+    ///
+    /// Always 0 for a background vocal. It steps through its words with the
+    /// line, but it is texture: drawn faint, and never swept.
     pub fn second_highlight_chars(&self, index: usize, pos: f64) -> usize {
-        let Some(s) = self.secondary(index, pos) else {
+        let Some(s) = self.secondary(index, pos).filter(|s| !s.background) else {
             return 0;
         };
         sweep_words(&s.words, s.text.chars().count(), pos).unwrap_or(0)

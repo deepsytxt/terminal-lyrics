@@ -409,7 +409,7 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                         // A second voice singing over this line, if the user
                         // wants both on screen. The parser always works them
                         // out; this only decides whether we ask.
-                        let mut partner = None;
+                        let mut voice = None;
                         if app.cfg.overlapping_voices
                             && let Some(s) = timeline.secondary(index, pos)
                             && !s.text.trim().is_empty()
@@ -417,10 +417,9 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                             second_text = s.text.clone();
                             second_background = s.background;
                             second_reveal = s.text.chars().count();
-                            if !s.background {
-                                partner = Some(s);
-                            }
+                            voice = Some(s);
                         }
+                        let partner = voice.filter(|s| !s.background);
 
                         // With real word timings, show the word being sung on
                         // its own. Decided per line, not per file: a source can
@@ -433,20 +432,21 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                         // stacked under all of the other reads as a mistake, so
                         // a partner without timings keeps both phrases whole. A
                         // background vocal is texture, and sits happily over a
-                        // single word.
+                        // single word either way.
                         let split = app.cfg.word_by_word
                             && !line.words.is_empty()
                             && partner.is_none_or(|p| !p.words.is_empty());
 
-                        // The partner is drawn as the line is: the same split
-                        // and the same sweep.
-                        if partner.is_some() {
+                        // The second voice gets the same split as the line, and
+                        // a duet partner the same sweep too; a background vocal
+                        // is never swept. One without word timings stays whole.
+                        if let Some(s) = voice {
                             second_highlight = if sweep {
                                 timeline.second_highlight_chars(index, pos)
                             } else {
                                 0
                             };
-                            if split {
+                            if split && !s.words.is_empty() {
                                 match timeline.second_active_word(index, pos) {
                                     Some(word) => {
                                         second_highlight =
