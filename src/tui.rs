@@ -728,15 +728,7 @@ async fn handle_key(
                 "whole lines"
             });
         }
-        KeyCode::Char('v') => {
-            app.cfg.overlapping_voices = !app.cfg.overlapping_voices;
-            app.note(if app.cfg.overlapping_voices {
-                "both voices"
-            } else {
-                "one voice"
-            });
-        }
-        KeyCode::Char('b') => {
+        KeyCode::Char('v' | 'V') => {
             app.cfg.visualizer = !app.cfg.visualizer;
             let msg = match (&app.cava_error, app.cfg.visualizer) {
                 (Some(e), true) => e.clone(),

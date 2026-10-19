@@ -111,9 +111,8 @@ you named with `--player` as soon as it is back.
 | `f` | cycle font: block → compact → mini |
 | `c` | switch between capitals and lowercase |
 | `w` | one word at a time, or whole lines |
-| `v` | both voices at once, or one |
 | `s` | cycle the highlight: never → auto → always |
-| `b` | spectrum bars along the bottom, on or off |
+| `v` | cava's spectrum bars under the lyrics, on or off |
 | `r` | forget the cached lyrics and look them up again |
 
 The shift belongs to the song, not to the session. A file that plays 300 ms late
@@ -141,10 +140,11 @@ The flags worth knowing:
 | `--offset-ms -250` | starting point for every song you have not tuned by hand |
 | `--color-source pywal` | take one accent colour from a palette |
 | `--dim-color '#9a9cae'` | a fixed colour for background vocals, instead of faint |
-| `--no-visualizer` | no spectrum bars under the lyrics |
+| `--visualizer` | start with cava's spectrum bars on |
 
-With [cava](https://github.com/karlstav/cava) installed, its spectrum stands on
-the status line under the lyrics, reaching halfway up the space between them, in
+With [cava](https://github.com/karlstav/cava) installed, `v` (or `--visualizer`,
+or `visualizer = true` in the config) puts its spectrum under the lyrics: the
+bars stand on the status line and reach halfway up the space between them, in
 the same faint colour as the status line. Your own `~/.config/cava/config` is read for its input settings, so
 if cava already captures one player's PipeWire node, so do these bars; only the
 bar count and output are replaced. Without cava nothing is drawn.

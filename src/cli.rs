@@ -95,12 +95,11 @@ pub struct Cli {
     pub single_voice: bool,
 
     /// Draw spectrum bars from `cava` under the lyrics, reaching halfway up
-    /// from the status line. This is the default when cava is installed;
-    /// `--no-visualizer` turns it off.
+    /// from the status line. Needs cava installed.
     #[arg(long, overrides_with = "no_visualizer")]
     pub visualizer: bool,
 
-    /// No spectrum bars.
+    /// No spectrum bars. This is the default.
     #[arg(long, overrides_with = "visualizer")]
     pub no_visualizer: bool,
 

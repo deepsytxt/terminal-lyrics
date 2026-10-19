@@ -36,7 +36,7 @@ color_source = "fixed:#ff6600"
 dim_color = "#8888aa"
 word_by_word = false
 overlapping_voices = false
-visualizer = false
+visualizer = true
 tick_ms = 77
 resync_threshold_ms = 333
 providers = ["kugou", "lrclib"]
@@ -86,7 +86,7 @@ fn file_overrides_every_default() {
     assert_eq!(cfg.dim_color, Some([0x88, 0x88, 0xaa]));
     assert!(!cfg.word_by_word);
     assert!(!cfg.overlapping_voices);
-    assert!(!cfg.visualizer);
+    assert!(cfg.visualizer);
     assert_eq!(cfg.tick_ms, 77);
     assert_eq!(cfg.resync_threshold_ms, 333);
     assert_eq!(cfg.providers, vec![Provider::KuGou, Provider::LrcLib]);
@@ -294,7 +294,8 @@ fn overlapping_voice_flags_override_the_file() {
 
 #[test]
 fn visualizer_flags_override_the_file() {
-    assert!(resolve("", &[]).visualizer, "on wherever cava is installed");
+    assert!(!resolve("", &[]).visualizer, "the bars are opt-in");
+    assert!(resolve("visualizer = true", &[]).visualizer);
     assert!(resolve("visualizer = false", &["--visualizer"]).visualizer);
     assert!(!resolve("visualizer = true", &["--no-visualizer"]).visualizer);
     assert!(!resolve("visualizer = false", &[]).visualizer);

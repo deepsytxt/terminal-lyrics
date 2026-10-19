@@ -51,7 +51,7 @@ word_by_word = true
 # When two voices are singing at once, show both, stacked. A background vocal
 # is drawn above the line, faint and a size smaller; the other half of a duet
 # is drawn full size, because it is a voice and not an echo. Set false to show
-# one line at a time, whichever came in most recently. The `v` key toggles it.
+# one line at a time, whichever came in most recently.
 overlapping_voices = true
 
 # Where the accent colour comes from. The default paints nothing itself: the
@@ -88,8 +88,8 @@ sweep = "never"
 # gets shorter bars rather than bars over the lyrics. Your own
 # ~/.config/cava/config supplies the input (which source is captured) and the
 # sound settings; the bar count and output are set here. Without cava installed
-# nothing is drawn. The `b` key toggles it.
-visualizer = true
+# nothing is drawn. Off by default; the `v` key toggles it.
+visualizer = false
 
 # Redraw interval in milliseconds (10–1000). Only the sweep moves between
 # player events, and unchanged cells are not redrawn at all.

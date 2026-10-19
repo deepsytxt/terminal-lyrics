@@ -213,8 +213,8 @@ pub struct Config {
     /// time, whichever came in most recently.
     pub overlapping_voices: bool,
     /// Spectrum bars from `cava` under the lyrics, standing on the status line
-    /// and reaching halfway up to the text. Nothing is drawn when cava is not
-    /// installed.
+    /// and reaching halfway up to the text. Off unless asked for; nothing is
+    /// drawn when cava is not installed.
     pub visualizer: bool,
     /// Redraw interval. Only the sweep highlight moves between player events.
     pub tick_ms: u64,
@@ -240,7 +240,7 @@ impl Default for Config {
             dim_color: None,
             word_by_word: true,
             overlapping_voices: true,
-            visualizer: true,
+            visualizer: false,
             tick_ms: 30,
             resync_threshold_ms: 250,
             providers: Provider::DEFAULT_ORDER.to_vec(),
