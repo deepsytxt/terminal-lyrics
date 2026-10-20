@@ -1,8 +1,5 @@
-//! Command-line surface.
-//!
-//! Every option is `Option<T>` so that "not passed" is distinguishable from
-//! "passed a value that happens to equal the default". `Config::resolve` is the
-//! single place where defaults, the config file and these flags are merged.
+//! Every option is `Option<T>` so "not passed" differs from "passed the
+//! default"; `Config::resolve` merges them with the file and the defaults.
 
 use std::path::PathBuf;
 
@@ -133,24 +130,19 @@ pub enum Command {
     Paths,
 }
 
-/// One canonical provider-name parser, shared with the config file so a typo
-/// gets the same message wherever it is written.
+/// Shared with the config file, so a typo gets the same message in both.
 fn parse_provider(raw: &str) -> Result<Provider, String> {
     raw.parse()
 }
 
-/// The same for the letter case.
 fn parse_case(raw: &str) -> Result<Case, String> {
     raw.parse()
 }
 
-/// Same idea for the colour source: one parser, so `--color-source` and the
-/// config key reject the same things with the same message.
 fn parse_color_source(raw: &str) -> Result<ColorSource, String> {
     raw.parse()
 }
 
-/// And for `--dim-color`, which is the same `#rrggbb` as `fixed:`.
 fn parse_hex(raw: &str) -> Result<[u8; 3], String> {
     crate::config::parse_hex(raw)
 }

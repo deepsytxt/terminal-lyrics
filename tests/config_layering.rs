@@ -1,9 +1,5 @@
-//! Defaults < config file < flags, asserted field by field.
-//!
-//! This file exists to catch one specific kind of bug: a flag that is parsed,
-//! echoed back to the user, and then ignored by the code it is supposed to
-//! control. Any option that stops being wired up should fail here rather than
-//! in someone's terminal.
+//! Defaults < config file < flags, field by field, so a flag that is parsed but
+//! not wired up fails here rather than in someone's terminal.
 
 use std::path::PathBuf;
 

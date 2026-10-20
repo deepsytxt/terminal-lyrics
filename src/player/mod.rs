@@ -1,26 +1,6 @@
-//! What the rest of the program knows about "something is playing".
-//!
-//! The TUI never talks to a media API directly: it consumes [`PlayerEvent`]s
-//! from a channel. That seam is what lets `fake.rs` drive the whole sync engine
-//! in a test with no player and no sleeping, and it is also where the supported
-//! platforms diverge.
-//!
-//! # Backends
-//!
-//! Exactly one backend is compiled, chosen by target, and each exposes the same
-//! `Session` and `PlayerHandle` items. There is no trait and no dynamic
-//! dispatch, because there is never more than one implementation in the binary:
-//!
-//! | target | module | how it listens |
-//! |---|---|---|
-//! | Linux | [`mpris`] | D-Bus signals, plus a slow `Position` poll |
-//! | macOS | [`macos`] | AppleScript, polled |
-//! | Windows | [`windows`] | System Media Transport Controls, polled |
-//! | other | [`unsupported`] | fails with a clear message |
-//!
-//! Everything above this line — [`Track`], [`PlayerEvent`], the ranking in
-//! [`rank_players`] and the name matching in [`match_name`] — is
-//! platform-neutral and stays testable everywhere.
+//! Exactly one backend is compiled per target, each exposing the same `Session`
+//! and `PlayerHandle`, so there is no trait: never more than one
+//! implementation.
 
 pub mod fake;
 
@@ -52,9 +32,8 @@ use tokio::sync::mpsc;
 /// The currently loaded track, normalised out of whatever the platform reports.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Track {
-    /// Stable identity for the saved sync nudges. Spotify gives a permalink
-    /// or a `spotify:track:` URI either way; other players fall back to their
-    /// own id, then to artist+title.
+    /// Stable identity for the saved sync nudges: the player's own id, else
+    /// artist and title.
     pub id: String,
     pub title: String,
     pub artist: String,
@@ -81,18 +60,14 @@ impl Track {
     }
 }
 
-/// The last-resort cache key, when the player offers no id of its own.
-///
-/// Shared so that a track keyed this way on one platform hits the same cache
-/// entry on another.
+/// The last-resort key when the player offers no id, shared so a track keyed
+/// this way hits the same cache entry on every platform.
 pub fn fallback_id(artist: &str, title: &str) -> String {
     format!("{artist}\u{1}{title}")
 }
 
-/// Everything a backend can say about the player in one round trip.
-///
-/// The point is the round trip: on macOS each field would otherwise cost its own
-/// subprocess, so the poll loop asks once and gets all three.
+/// Everything in one round trip: on macOS each field would otherwise cost its
+/// own subprocess.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
     pub playing: bool,
@@ -125,12 +100,8 @@ pub struct PlayerState {
     pub has_track: bool,
 }
 
-/// Choose between players when the user has not named one.
-///
-/// Taking the first name alphabetically is wrong in practice: a browser
-/// registers an idle `org.mpris.MediaPlayer2.chromium.instance…` that sorts
-/// before `spotify` and reports no track at all, so the visualiser would follow
-/// silence while music played next to it. Something actually playing wins.
+/// Something actually playing wins: a browser's idle MPRIS entry sorts before
+/// `spotify` and has no track.
 pub fn rank_players(mut candidates: Vec<PlayerState>) -> Option<PlayerState> {
     fn score(p: &PlayerState) -> u8 {
         match (p.playing, p.has_track) {
@@ -145,10 +116,8 @@ pub fn rank_players(mut candidates: Vec<PlayerState>) -> Option<PlayerState> {
     candidates.into_iter().next()
 }
 
-/// Resolve `--player` against the names that are actually available.
-///
-/// Exact match first, then prefix, both case-insensitively, so `--player spot`
-/// finds `spotify` and `--player chromium` finds `chromium.instance26065`.
+/// Exact match first, then prefix, case-insensitively: `--player spot` finds
+/// `spotify`.
 pub fn match_name(available: &[String], wanted: &str) -> Option<String> {
     let wanted = wanted.trim();
     available
@@ -163,13 +132,8 @@ pub fn match_name(available: &[String], wanted: &str) -> Option<String> {
         .cloned()
 }
 
-/// Which player to pick up after the one being followed has closed, or `None`
-/// to keep waiting.
-///
-/// Stricter than [`choose`]: a named player is taken as soon as it is back, but
-/// unnamed, only one with something loaded will do. Otherwise the browser's
-/// idle MPRIS entry would be picked up the moment the music player closed, and
-/// the display would sit on it while the real player came back next to it.
+/// Stricter than [`choose`]: unnamed, only a player with something loaded will
+/// do, or the browser's idle entry would be picked the moment the music closed.
 pub fn pick_reconnect(states: Vec<PlayerState>, wanted: Option<&str>) -> Option<String> {
     match wanted {
         Some(w) => {
@@ -182,8 +146,7 @@ pub fn pick_reconnect(states: Vec<PlayerState>, wanted: Option<&str>) -> Option<
     }
 }
 
-/// How often to read `Position` from the player. This is the safety net for
-/// players that do not emit `Seeked` — Spotify among them — not the main
+/// The safety net for players that do not emit `Seeked` (Spotify), not the main
 /// source of truth, so once a second is plenty.
 pub const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -217,11 +180,8 @@ impl Drop for Link {
     }
 }
 
-/// Pick the player to follow, given a survey of what is running.
-///
-/// Shared by every backend so that `--player` behaves identically on all of
-/// them. `what` names the thing that is missing, e.g. `"MPRIS player on the
-/// session bus"`, because that part is the only bit that differs.
+/// Shared by every backend so `--player` behaves the same on all of them.
+/// `what` names what is missing, e.g. `"MPRIS player on the session bus"`.
 pub fn choose(states: Vec<PlayerState>, wanted: Option<&str>, what: &str) -> Result<String> {
     if states.is_empty() {
         return Err(anyhow!(

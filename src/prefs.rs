@@ -1,28 +1,13 @@
-//! Display choices made with the keys, written back to the config file.
-//!
-//! `f`, `c`, `w`, `s` and `v` change how the lyrics look, and a choice made
-//! once should still be there on the next run rather than having to be made
-//! again every time. The config file is where those settings already live, so
-//! that is where the choice goes: one place to look, one place to edit, and a
-//! key pressed is the same as having typed the line by hand.
-//!
-//! The file is the user's, so only the one key is touched. Everything else —
-//! comments, blank lines, the order of keys, a trailing comment on the line
-//! being changed — is left exactly as it was. A file that is not valid TOML is
-//! not rewritten at all; the run that loaded it would have failed already, but
-//! a file edited by hand mid-run must not be flattened by a keypress.
-//!
-//! Like the per-song offsets, disk is the truth on every write: the file is
-//! read, changed and written back each time, so two `lyrics` running at once
-//! cannot undo each other's choices.
+//! Only the one key is touched; comments, order and spacing stay as they were.
+//! The file is re-read on every write, so two running copies cannot undo each
+//! other.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use toml_edit::{DocumentMut, Value};
 
-/// Where the keys' choices are saved. A store with no path still works; the
-/// choices last for the session and are forgotten on exit.
+/// A store with no path forgets the choices on exit.
 #[derive(Debug, Clone)]
 pub struct Prefs {
     path: Option<PathBuf>,
@@ -33,7 +18,6 @@ impl Prefs {
         Self { path }
     }
 
-    /// Nowhere to save; choices last only for this session.
     pub fn in_memory() -> Self {
         Self::new(None)
     }

@@ -1,7 +1,4 @@
-//! Composing the screen.
-//!
-//! Everything here is pure: state in, a ratatui `Text` out. The terminal is
-//! only touched by `tui.rs`, so the layout can be unit-tested.
+//! Pure: state in, a ratatui `Text` out; only `tui.rs` touches the terminal.
 
 pub mod bars;
 pub mod case;
@@ -23,18 +20,16 @@ use self::layout::Layout;
 /// Blank rows between wrapped lines of block art.
 pub const LINE_GAP: usize = 1;
 
-/// Blank rows between the two voices. Twice the gap between wrapped lines, so
-/// the two read as two people singing rather than one phrase that happened to
-/// wrap.
+/// Twice the gap between wrapped lines, so two voices read as two people rather
+/// than one phrase that wrapped.
 pub const VOICE_GAP: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
     pub sung: Color,
     pub unsung: Color,
-    /// Background vocals and the status lines. A whole style rather than a
-    /// colour, because the default is not a colour of its own but the lyric
-    /// colour drawn faint.
+    /// A style rather than a colour: the default is the lyric colour drawn
+    /// faint.
     pub dim: Style,
 }
 
@@ -51,19 +46,8 @@ impl Default for Theme {
 }
 
 impl Theme {
-    /// The default theme, with the lyric text repainted in `accent`.
-    ///
-    /// `unsung` is the slot that moves, and it has to be that one: `sung` is
-    /// only reached where the sweep has passed, and the sweep is off by default
-    /// (`Sweep::Never`), so an accent applied to `sung` would be a setting that
-    /// parses, prints back, and never changes a pixel. `unsung` is what a line
-    /// is drawn in almost all of the time.
-    ///
-    /// `dim` follows it, still faint, so a background vocal reads as a quieter
-    /// version of the line. `sung` stays a palette entry, so the highlight
-    /// still follows the terminal's own scheme — which is the property the
-    /// default was chosen for, and the one a list of hardcoded themes would
-    /// have cost.
+    /// Repaints `unsung`, not `sung`: the sweep is off by default, so `sung` is
+    /// rarely drawn and an accent there would change nothing on screen.
     pub fn with_accent(accent: Option<[u8; 3]>) -> Self {
         match accent {
             None => Self::default(),
@@ -88,13 +72,9 @@ impl Theme {
     }
 }
 
-/// The lyric colour with the terminal's faint attribute, rather than a grey of
-/// our own. Palette 8 ("bright black", what `DarkGray` names) is often tuned to
-/// sit barely above the background, and on a translucent or blurred one it all
-/// but vanishes; faint is worked out by the terminal from the text and what is
-/// behind it, so it stays a readable step down from the line. A terminal that
-/// ignores faint draws it at full strength, and the smaller font still says it
-/// is the background voice.
+/// Faint rather than palette 8, which is often barely above the background and
+/// vanishes on a translucent one; the terminal keeps faint a readable step
+/// down.
 fn faint(colour: Color) -> Style {
     Style::new().fg(colour).add_modifier(Modifier::DIM)
 }
@@ -106,9 +86,7 @@ pub struct SecondVoice<'a> {
     /// A background vocal: dimmed, and drawn a size smaller than the line it
     /// sits over. The other half of a duet is neither — it is a co-equal voice.
     pub background: bool,
-    /// As for [`Screen::Lyric`]: how far the sweep has got, and how much is
-    /// inked. A duet partner goes word by word and sweeps just like the line.
-    /// A background vocal goes word by word too, but is never swept, so only
+    /// As for [`Screen::Lyric`]. A background vocal is never swept, so only
     /// `reveal` applies to it.
     pub highlight: usize,
     pub reveal: usize,
@@ -117,12 +95,9 @@ pub struct SecondVoice<'a> {
 /// What the screen should show right now.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen<'a> {
-    /// A lyric line.
-    ///
-    /// `highlight` is how many characters the sweep has passed. `reveal` is how
-    /// many are drawn at all: a word timed in syllables is laid out whole, so it
-    /// sits where it will finally sit, but only the syllables reached so far are
-    /// inked. The rest holds its space blank instead of shifting the word.
+    /// `highlight` is how far the sweep has got; `reveal` is how much is inked.
+    /// A syllable-timed word is laid out whole and its unreached part held
+    /// blank.
     Lyric {
         text: &'a str,
         highlight: usize,
@@ -164,9 +139,8 @@ pub fn render(
             let (main, second) = fit_voices(text, *second, font, width, height);
             let mut rows: Vec<Line<'static>> = Vec::new();
             if let Some(s) = &second {
-                // Dimmed and flat for a background vocal. A duet partner is drawn
-                // exactly as the line is, so the two read as equals rather than
-                // as a line and its shadow.
+                // Dimmed and flat for a background vocal; a duet partner is
+                // drawn exactly as the line is, so the two read as equals.
                 let style = match s.background {
                     true => RowStyle::Flat {
                         style: theme.dim,
@@ -191,9 +165,8 @@ pub fn render(
                 width,
                 theme,
             ));
-            // The rows an accent or a descender added, at the very top and the
-            // very bottom: centring ignores them, so the capitals stay put as
-            // one word with a descender follows one without.
+            // Centring ignores the rows an accent or a descender added, so the
+            // capitals stay put from one word to the next.
             let first = second
                 .as_ref()
                 .and_then(|s| s.fitted.layout.lines.first())
@@ -238,13 +211,9 @@ struct FittedSecond {
     reveal: usize,
 }
 
-/// Fit the line, and the voice over it, into the space there is.
-///
-/// The order matters. The line's own size is settled first, against the whole
-/// budget, and is the floor: the pair may step down together to make room, but
-/// if even the smallest font cannot hold both, the second voice is dropped and
-/// the line goes back to the size it would have had alone. Shrinking the lyric
-/// for something that then gets dropped would be the worst of both.
+/// The line's size is settled first and is the floor: if the smallest font
+/// cannot hold both, the second voice is dropped rather than shrinking the
+/// line.
 fn fit_voices(
     main: &str,
     second: Option<SecondVoice<'_>>,

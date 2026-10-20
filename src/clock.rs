@@ -1,13 +1,5 @@
-//! Playback position without polling.
-//!
-//! Polling a player process several times a second and inferring seeks from
-//! position drift is the obvious approach and a bad one. Here the player tells
-//! us where it is whenever it changes, we record that as an anchor, and
-//! everything between anchors is interpolated from a monotonic `Instant`. A slow background poll exists only
-//! to catch players (Spotify among them) that do not emit `Seeked` reliably.
-//!
-//! Every method takes `now` explicitly so the whole thing is testable without
-//! sleeping.
+//! Position interpolated from the player's last report, with no polling. A slow
+//! background poll exists only for players (Spotify) that do not emit `Seeked`.
 
 use std::time::{Duration, Instant};
 
@@ -32,8 +24,8 @@ impl SyncClock {
         }
     }
 
-    /// Record a position reported by the player. This is the only way the clock
-    /// learns the truth; everything else is interpolation from here.
+    /// The only way the clock learns the truth; the rest interpolates from
+    /// here.
     pub fn anchor(&mut self, pos: f64, rate: f64, playing: bool, now: Instant) {
         self.anchor_pos = pos.max(0.0);
         self.anchor_at = now;

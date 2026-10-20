@@ -1,14 +1,5 @@
-//! Turning one lyric line into rows of glyph art that fit the terminal.
-//!
-//! Rendering the whole line and then cutting it to the terminal width loses the
-//! end of every long line. Here the glyph run is wrapped at word boundaries,
-//! and if a single word is still too wide the font steps down before anything
-//! is discarded. Nothing is ever truncated.
-//!
-//! Glyphs are pixel bitmaps until a line is wrapped; only then is each line
-//! packed into half blocks, two pixel rows to a terminal row. A line is exactly
-//! as tall as its ink: the capitals' rows always, plus a row or two above for
-//! an accent on a capital and below for a descender, only when it has one.
+//! Lines wrap at word boundaries and the font steps down before anything is
+//! cut; nothing is ever truncated.
 
 use super::font::{Font, Glyph};
 
@@ -92,15 +83,8 @@ fn pieces(text: &str, font: &Font) -> Vec<Piece> {
         .collect()
 }
 
-/// Wrap `text` to `max_width` columns using `font`.
-///
-/// Breaks between words where possible. A word wider than the whole terminal is
-/// broken mid-word rather than clipped — ugly, but it keeps every character.
-///
-/// A line written mostly in letters the font cannot draw — Japanese, Cyrillic
-/// — is laid out in `mini` instead, so the script is readable and at one size,
-/// rather than a run of tiny characters adrift among the block capitals. A
-/// stray one in a Latin line is drawn as plain text in place.
+/// A word wider than the terminal breaks mid-word rather than being clipped. A
+/// line mostly in letters the font cannot draw is laid out in `mini` instead.
 pub fn layout(text: &str, font: &Font, max_width: usize) -> Layout {
     if !font.is_plain() {
         let letters = text

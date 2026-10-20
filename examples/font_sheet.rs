@@ -1,8 +1,5 @@
 //! Prints every font's glyphs, for checking the art in `src/render/fonts/`.
 //! `cargo run --example font_sheet [block|compact|mini] [text…]`.
-//!
-//! With no text it prints the alphabet both ways, the digits and punctuation,
-//! and a line of accented letters from several languages.
 
 use terminal_lyrics::render::{Screen, Theme, font, render};
 

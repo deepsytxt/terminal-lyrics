@@ -1,10 +1,5 @@
-//! The seven built-in providers, and the HTTP they share.
-//!
-//! Each provider is a fetch function that turns a [`Request`] into
-//! [`Lyrics`]: empty lyrics for "nothing here", an error for "could not ask".
-//! What happens around the fetch — the cache, the rate limit, the race between
-//! providers — is the same for every one of them and lives in
-//! [`super::engine`].
+//! A provider returns empty lyrics for "nothing here" and an error for "could
+//! not ask"; the cache, rate limit and race live in [`super::engine`].
 
 pub mod amll;
 pub mod betterlyrics;
@@ -28,7 +23,6 @@ pub const USER_AGENT: &str = concat!(
     " (+https://github.com/mgtaco/terminal-lyrics)"
 );
 
-/// One HTTP client for every provider.
 pub struct Http {
     client: reqwest::Client,
 }
@@ -116,9 +110,8 @@ pub(crate) fn decode_json<T: DeserializeOwned>(body: &[u8]) -> Result<T> {
         .map_err(|e| Error::invalid(format!("invalid lyrics response: {e}")))
 }
 
-/// Sorted by key, everything but `A-Za-z0-9-_.~` percent-encoded, and a space
-/// as `%20` rather than `+`: KuGou's search finds nothing for `a - b` when the
-/// spaces arrive as `+`.
+/// Sorted, and a space as `%20` rather than `+`: KuGou's search finds nothing
+/// for `a - b` when the spaces arrive as `+`.
 pub(crate) fn encode_query(query: &[(String, String)]) -> String {
     let mut pairs: Vec<&(String, String)> = query.iter().collect();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));

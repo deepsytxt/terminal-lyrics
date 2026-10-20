@@ -1,12 +1,5 @@
-//! The document formats providers and local files answer in.
-//!
-//! Each parser takes untrusted bytes and returns [`Lyrics`]. They are separate
-//! from [`crate::lrc`] because they read every document into the provider
-//! model, whose text, stamps and voices are what the cache stores.
-//!
-//! All of them expect hostile input and cap it: [`MAX_SOURCE_BYTES`] of input,
-//! [`MAX_LINES`] lines and [`MAX_WORDS`] words, past which they return
-//! [`Error::TooLarge`].
+//! Every parser expects hostile input and caps it at [`MAX_SOURCE_BYTES`],
+//! [`MAX_LINES`] and [`MAX_WORDS`].
 
 pub mod lrc;
 pub mod lyricsfile;
@@ -20,7 +13,6 @@ pub const MAX_SIDECAR_BYTES: u64 = 256 << 10;
 pub const MAX_LINES: usize = 2000;
 pub const MAX_WORDS: usize = 16000;
 
-/// The shape every parser has.
 pub type Parser = fn(&[u8]) -> Result<Lyrics>;
 
 /// Bytes to text: bounded, BOM dropped, UTF-8 or nothing.

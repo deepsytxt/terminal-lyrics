@@ -1,10 +1,5 @@
-//! Apple-style timed TTML: `ttm:agent` voices, `x-bg` backing vocals, and
-//! word timing from `<span begin>`.
-//!
-//! Every element hands a scope down to its children — its times, whether it is
-//! a backing vocal, whose voice it is — and text lands in the line for its
-//! voice within the current `<p>`. A lead and its backing vocal are two lines
-//! from one paragraph, tied together by [`Line::group`].
+//! Apple-style timed TTML. A lead and its backing vocal come from one `<p>` as
+//! two lines tied together by [`Line::group`].
 
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;

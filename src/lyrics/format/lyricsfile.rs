@@ -1,9 +1,5 @@
-//! Lyricsfile 1.0: YAML with per-line and per-word millisecond stamps.
-//!
-//! LRCLIB serves these for some records, and a `.lyricsfile.yaml` next to the
-//! track is read too. The document is untrusted YAML, so only the plain subset
-//! is accepted: no anchors or aliases, no tags beyond the core string, int,
-//! bool and null, unique string keys, bounded depth and width.
+//! Lyricsfile 1.0. The YAML is untrusted, so only a plain subset is accepted:
+//! no anchors, aliases or uncommon tags, unique keys, bounded depth and width.
 
 use yaml_rust2::parser::{Event, EventReceiver, Parser};
 use yaml_rust2::scanner::TScalarStyle;

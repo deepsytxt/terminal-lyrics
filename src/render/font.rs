@@ -1,15 +1,7 @@
-//! Block fonts.
-//!
-//! The solid block letters are modelled on the look of
-//! [tacos-terminal-lyrics](https://github.com/tacoproz1/tacos-terminal-lyrics),
-//! which is where the idea for this program came from.
-//!
-//! A glyph is a pixel bitmap, drawn with half blocks: one pixel is one column
-//! wide and half a row tall, which on a terminal cell of about 1:2 makes it
-//! square. The art lives in `fonts/*.font` rather than here, one bitmap per
-//! character, and an accented letter is never drawn by hand: it is the base
-//! letter with its marks stamped on, so one acute serves every vowel and
-//! every language that uses it.
+//! The look comes from
+//! [tacos-terminal-lyrics](https://github.com/tacoproz1/tacos-terminal-lyrics).
+//! An accented letter is never drawn by hand: its base letter gets the marks
+//! stamped on.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -17,10 +9,7 @@ use std::sync::LazyLock;
 use unicode_normalization::char::{decompose_canonical, is_combining_mark};
 use unicode_width::UnicodeWidthStr;
 
-/// One glyph's pixels.
-///
-/// `top` is the y of the first row, in pixels down from the cap line: 0 is the
-/// top of a capital, the font's `cap` its baseline, and a negative `top` is a
+/// `top` is the first row's y in pixels down from the cap line; negative is a
 /// mark standing above the capitals.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bitmap {
@@ -71,9 +60,8 @@ impl Bitmap {
         Some((first, last))
     }
 
-    /// Ink `mark` onto this bitmap with its top-left corner at `(x, y)`,
-    /// growing the canvas in whichever direction the mark overhangs it. A mark
-    /// wider than its letter widens the glyph rather than being cut.
+    /// Grows the canvas wherever `mark` overhangs it, so a mark wider than its
+    /// letter widens the glyph rather than being cut.
     fn stamp(&mut self, mark: &Bitmap, x: i32, y: i32) {
         if x < 0 {
             let grow = (-x) as usize;
@@ -115,11 +103,9 @@ impl Bitmap {
 /// What one character of a lyric is drawn as.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Glyph {
-    /// Block art.
     Art(Bitmap),
-    /// The character itself, as terminal text. All of `mini` is drawn this
-    /// way, and so is anything a block font has no art for, so that a stray
-    /// emoji is still shown rather than silently becoming a space.
+    /// The character as terminal text: all of `mini`, and anything a block font
+    /// has no art for, so a stray emoji is still shown.
     Plain(String),
 }
 
@@ -158,11 +144,9 @@ struct Face {
 const HEADER: [&str; 5] = ["cap", "descent", "gap", "space", "tracking"];
 
 impl Face {
-    /// The format: `key value` header lines, then one `== X` line per glyph
-    /// (`X` a single character, or `mark:name` for an accent) followed by its
-    /// rows, `#` for ink and `.` for blank. A letter gives either its `cap`
-    /// rows or `cap + descent` of them, the baseline falling after row `cap`.
-    /// A mark gives whatever rows it needs. `;` starts a comment line.
+    /// `key value` headers, then `== X` (or `== mark:name`) per glyph and its
+    /// rows of `#` and `.`: `cap` rows, or `cap + descent`. `;` starts a
+    /// comment line.
     fn parse(src: &str) -> Result<Self, String> {
         let mut header: HashMap<&str, usize> = HashMap::new();
         let mut entries: Vec<(&str, Vec<&str>)> = Vec::new();
@@ -474,12 +458,8 @@ pub fn next_after(name: &str) -> &'static str {
     NAMES[(idx + 1) % NAMES.len()]
 }
 
-/// The next font down, or `None` at the smallest.
-///
-/// Not the same thing as [`next_after`], which is the `f` key's cycle and wraps
-/// from `mini` back round to `block`. Stepping down has to terminate: it is
-/// what draws a second voice a size smaller than the line it sits over, and
-/// what the two-voice fit walks when the terminal is short.
+/// Unlike [`next_after`], which is the `f` key's cycle and wraps, stepping down
+/// has to stop.
 pub fn smaller_than(name: &str) -> Option<Font> {
     let idx = NAMES.iter().position(|n| *n == name)?;
     NAMES.get(idx + 1).and_then(|n| by_name(n))

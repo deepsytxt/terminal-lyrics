@@ -1,9 +1,5 @@
-//! The display keys save their choice to the config file.
-//!
-//! Before this, `f`, `c`, `w`, `s` and `v` lasted only until the program
-//! closed, so the same choices had to be made again on every run. Now each one
-//! writes its key into the config file, and since that file is the user's own,
-//! the write has to leave the rest of it exactly as it was.
+//! The display keys save their choice to the config file, leaving the rest of
+//! the user's file exactly as it was.
 
 use std::path::PathBuf;
 
@@ -105,9 +101,8 @@ fn with_no_path_nothing_is_written() {
     Prefs::in_memory().set("font", "mini").unwrap();
 }
 
-/// The keys save each setting's label, so every label has to load back as the
-/// value it came from — or the choice would be saved and then fail the next
-/// start.
+/// Every label the keys save has to load back, or a saved choice would fail the
+/// next start.
 #[test]
 fn every_saved_value_loads_back() {
     let path = scratch("round-trip");

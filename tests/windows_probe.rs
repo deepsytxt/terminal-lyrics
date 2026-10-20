@@ -1,9 +1,5 @@
-//! Reading the System Media Transport Controls.
-//!
-//! The backend itself cannot be tested — it needs a live WinRT session manager
-//! and at least one app registered with it — so the edge is kept as thin as
-//! possible and everything with a decision in it lives in `parse_sessions` and
-//! `friendly_name`. These are the decisions.
+//! The SMTC parser. The backend needs a live WinRT session manager, so every
+//! decision lives in `parse_sessions` and `friendly_name`.
 #![cfg(target_os = "windows")]
 
 use terminal_lyrics::player::fallback_id;
@@ -30,10 +26,8 @@ fn session(app_id: &str, status: i32, position_ticks: i64, title: &str) -> RawSe
 
 #[test]
 fn a_timespan_is_read_as_ticks_not_milliseconds_or_seconds() {
-    // 6.55 seconds. Read as milliseconds this would be 65_500_000 seconds, and
-    // read as seconds it would be 65.5 million — either way the lyrics would sit
-    // at the end of the song forever, which looks like a sync bug rather than
-    // the unit bug it is.
+    // 6.55 seconds. In the wrong unit the lyrics would sit at the end of the
+    // song forever, which looks like a sync bug rather than a unit bug.
     let out = parse_sessions(&[session(
         "Spotify.exe",
         PLAYING,
@@ -57,9 +51,8 @@ fn a_track_length_comes_through_in_seconds_too() {
 
 #[test]
 fn an_unknown_end_time_is_no_length_rather_than_a_zero_length() {
-    // A live stream reports no end time. Calling that a zero-second track would
-    // put every LRCLIB candidate outside the duration window and quietly cost
-    // the song its lyrics.
+    // A live stream has no end time; a zero-second length would put every
+    // candidate outside the duration window and cost the song its lyrics.
     let mut raw = session("Spotify.exe", PLAYING, 0, "Some Stream");
     raw.end_ticks = 0;
     let out = parse_sessions(&[raw]);
@@ -161,9 +154,8 @@ fn surrounding_whitespace_in_metadata_is_trimmed_off() {
 
 #[test]
 fn a_non_ascii_app_id_does_not_panic() {
-    // `SourceAppUserModelId` is arbitrary text, so the `.exe` trim cannot assume
-    // the last four bytes are their own characters — cutting at a fixed offset
-    // from the end lands mid-character here and panics.
+    // The `.exe` trim cannot cut at a fixed byte offset: here that lands
+    // mid-character and panics.
     assert_eq!(friendly_name("音楽"), "音楽");
     assert_eq!(friendly_name("音楽.exe"), "音楽");
     assert_eq!(friendly_name("Player™"), "player™");

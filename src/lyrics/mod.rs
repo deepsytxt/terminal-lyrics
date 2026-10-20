@@ -1,24 +1,5 @@
-//! Finding lyrics for a track.
-//!
-//! Seven providers raced at once, with a cache in front of them whose files and
-//! keys follow a fixed format, so it can be shared. See
-//! [`cache::default_dir`].
-//!
-//! Order: `--lrc-dir`, then a lyrics file next to the track (see
-//! [`sidecar`]), then the cache and the providers, raced by [`engine`]:
-//!
-//! | provider | format | sync |
-//! |---|---|---|
-//! | `amll` | TTML, by Spotify id | word, voices, backing vocals |
-//! | `betterlyrics` | TTML | word, voices, backing vocals |
-//! | `unison` | TTML, LRC or plain | whatever was submitted |
-//! | `lyricsplus` | JSON | word, voices, backing vocals |
-//! | `lrclib` | LRC, sometimes Lyricsfile | line, now and then word |
-//! | `youtubemusic` | JSON | line |
-//! | `kugou` | KRC, LRC if KRC fails | word |
-//!
-//! Everything is async and runs off the UI task, so a slow network never
-//! freezes the display.
+//! Order: `--lrc-dir`, a [`sidecar`] file, then the cache and the providers
+//! raced by [`engine`].
 
 pub mod cache;
 pub mod display;
@@ -67,8 +48,7 @@ impl std::fmt::Display for Source {
 }
 
 impl Source {
-    /// Short form for the one-line status strip, where a full path would crowd
-    /// out everything else.
+    /// For the status strip, where a full path would crowd out everything else.
     pub fn short(&self) -> String {
         match self {
             Source::LocalFile(p) | Source::Sidecar(p) => p
@@ -128,10 +108,7 @@ pub fn local_lookup(dir: &Path, track: &Track) -> Option<Found> {
     None
 }
 
-/// One provider, and the name it goes by in the config.
-///
-/// The list of these *is* the on/off switch: dropping a name skips that
-/// provider, and the order of the list is the priority order.
+/// The config's list of these is both the on/off switch and the priority order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Provider {
@@ -193,9 +170,8 @@ impl std::str::FromStr for Provider {
         {
             return Ok(p);
         }
-        // Naming the valid ones matters more here than usual: this is a typo
-        // in a config file, and an ignored one would look like the provider
-        // was simply never reached.
+        // Name the valid ones: an ignored typo here would look like the
+        // provider was never reached.
         let why = match want.as_str() {
             "lrcmux" => " (removed in 0.3.0)",
             _ => "",
@@ -221,9 +197,8 @@ impl std::fmt::Display for Provider {
     }
 }
 
-/// The request for this track: the title trimmed, every artist
-/// joined, a length only once it is over a second, the file URL only for a
-/// local file, and the Spotify id only for a Spotify track.
+/// Title trimmed, artists joined, a length only over a second, and the file URL
+/// and Spotify id only when they apply.
 pub fn request_for(track: &Track, network: bool) -> Request {
     Request {
         title: track.title.trim().to_string(),

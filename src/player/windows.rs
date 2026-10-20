@@ -1,26 +1,5 @@
-//! Windows, via the System Media Transport Controls.
-//!
-//! SMTC is the API behind the media flyout in the volume panel: every app that
-//! wants its track shown there registers a session, which makes it the closest
-//! thing Windows has to MPRIS. Unlike AppleScript on macOS it is a real
-//! discovery API, so this backend does not need to know the players by name —
-//! whatever registers a session can be followed.
-//!
-//! What it does not report is any stable identifier for the track. There is no
-//! `spotify:track:<id>` here the way there is in Spotify's AppleScript
-//! dictionary and its MPRIS metadata, so [`Track::id`] falls back to
-//! artist-and-title. That costs nothing for lyrics: every provider matches on
-//! artist, title, album and length, which SMTC does report.
-//!
-//! Two things are worth knowing about the edge:
-//!
-//! * WinRT wants a multithreaded apartment, and its async operations complete
-//!   on whichever thread the runtime picks rather than one we control. See
-//!   [`ensure_mta`].
-//! * A WinRT `TimeSpan` counts 100-nanosecond ticks, not milliseconds and not
-//!   seconds. Getting that wrong does not fail — it silently reports a position
-//!   that is out by a factor of ten million, which looks like a sync bug rather
-//!   than a unit bug.
+//! System Media Transport Controls. WinRT wants a multithreaded apartment (see
+//! [`ensure_mta`]), and a `TimeSpan` counts 100-nanosecond ticks.
 
 use std::sync::Once;
 use std::time::Duration;
@@ -44,18 +23,12 @@ const MISSES_BEFORE_GONE: u32 = 3;
 /// A WinRT `TimeSpan` is a count of 100-nanosecond ticks.
 const TICKS_PER_SECOND: f64 = 10_000_000.0;
 
-/// `GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing`.
-///
-/// The enum's other values are Closed, Opened, Changing, Stopped and Paused, in
-/// that order from zero. Only one of them means sound is coming out.
+/// `PlaybackStatus::Playing`; the enum's other values run Closed, Opened,
+/// Changing, Stopped, Paused from zero.
 const STATUS_PLAYING: i32 = 5;
 
-/// One SMTC session, read out of WinRT into plain owned values.
-///
-/// Nothing in here is a WinRT type, and that is the whole point: every decision
-/// this backend makes happens in [`parse_sessions`] against this struct, so the
-/// decisions are testable without a media session, and the WinRT code below is
-/// left as a transcription with no judgement in it.
+/// Plain owned values, so every decision happens in [`parse_sessions`] and can
+/// be tested without a media session.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct RawSession {
     /// `SourceAppUserModelId`, e.g. `Spotify.exe`.
@@ -76,24 +49,15 @@ pub struct Probe {
     pub snapshot: Snapshot,
 }
 
-/// Turn a `SourceAppUserModelId` into the short name the user types.
-///
-/// Desktop apps register an executable (`Spotify.exe`); packaged apps register a
-/// full AUMID (`Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic`). Both
-/// have to come out as something a person would guess, lowercased so it matches
-/// the short names the other backends use — `spotify` on Linux is `spotify`
-/// here too, and `--player spot` finds it through [`super::match_name`].
+/// `Spotify.exe` or `Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic`,
+/// lowercased to match the other backends' short names.
 pub fn friendly_name(app_id: &str) -> String {
     let s = app_id.trim();
     // A packaged app's AUMID is `<package family>!<app id>`; the half after the
     // bang is the specific one.
     let s = s.rsplit('!').next().unwrap_or(s);
-    // `Spotify.exe` -> `Spotify`. Done before the dot split below, which would
-    // otherwise reduce it to `exe`.
-    //
-    // Cutting at the last dot rather than at `len - 4`: an app id is arbitrary
-    // text, and `len - 4` can land in the middle of a multi-byte character,
-    // where slicing panics. `rfind` only ever returns a character boundary.
+    // Cut at the last dot, not `len - 4`, which can land mid-character and
+    // panic. Before the dot split below, which would leave `exe`.
     let s = match s.rfind('.') {
         Some(dot) if s[dot..].eq_ignore_ascii_case(".exe") => &s[..dot],
         _ => s,
@@ -128,12 +92,8 @@ fn score(snap: &Snapshot) -> u8 {
     }
 }
 
-/// Everything this backend decides, in one pure function.
-///
-/// A session with no title is kept but carries no track: a browser playing a
-/// video it has no metadata for is still a player, it just is not one with
-/// lyrics, and [`super::rank_players`] already prefers a session that has a
-/// track over one that does not.
+/// A session with no title is kept without a track: a browser playing an
+/// untitled video is still a player, just one without lyrics.
 pub fn parse_sessions(raw: &[RawSession]) -> Vec<Probe> {
     let mut out: Vec<Probe> = Vec::new();
 
@@ -143,15 +103,13 @@ pub fn parse_sessions(raw: &[RawSession]) -> Vec<Probe> {
         let album = r.album.trim();
 
         let track = (!title.is_empty()).then(|| Track {
-            // SMTC exposes no track id, so this is the shared last-resort key —
-            // the same one the other backends fall back to, so a track keyed
-            // here hits the same cache entry it would on Linux.
+            // SMTC has no track id; the shared last-resort key lets a track hit
+            // the same cache entry it would on Linux.
             id: fallback_id(artist, title),
             title: title.to_string(),
             artist: artist.to_string(),
             album: (!album.is_empty()).then(|| album.to_string()),
-            // A live stream reports no end time; zero means "unknown", not
-            // "zero seconds long", and a bogus length would put every LRCLIB
+            // A live stream reports no end time; a bogus length would put every
             // candidate outside the duration window.
             length: (r.end_ticks > 0).then(|| seconds(r.end_ticks)),
             url: None,
@@ -166,9 +124,8 @@ pub fn parse_sessions(raw: &[RawSession]) -> Vec<Probe> {
             },
         };
 
-        // Two windows of the same browser register two sessions. Keeping the
-        // better of them stops `--player msedge` being a coin flip between the
-        // tab playing music and the one that is only holding a paused video.
+        // Two windows of one browser register two sessions; keep the better, or
+        // `--player msedge` is a coin flip.
         match out.iter_mut().find(|p| p.name == probe.name) {
             Some(existing) if score(&probe.snapshot) > score(&existing.snapshot) => {
                 *existing = probe;
@@ -181,17 +138,8 @@ pub fn parse_sessions(raw: &[RawSession]) -> Vec<Probe> {
     out
 }
 
-/// Register the process as a multithreaded apartment.
-///
-/// WinRT needs COM initialised, and the calls below resolve on whichever thread
-/// the runtime completes them on rather than one we control.
-/// `CoIncrementMTAUsage` sets the process up once and, unlike `CoInitializeEx`,
-/// has no matching uninit to pair with — which is what suits a process that
-/// never wants to tear the apartment back down.
-///
-/// The cookie it returns is only an argument for `CoDecrementMTAUsage`, which
-/// is never called here. It is `Copy` and so carries no destructor, meaning
-/// dropping it does nothing and the apartment stays up regardless.
+/// `CoIncrementMTAUsage` rather than `CoInitializeEx`: it needs no matching
+/// uninit, and dropping its `Copy` cookie leaves the apartment up.
 fn ensure_mta() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
@@ -199,14 +147,8 @@ fn ensure_mta() {
     });
 }
 
-/// Every live session, as an owned `Vec`.
-///
-/// The `Vec` is the point. `GetSessions` hands back an `IVectorView`, and WinRT
-/// collections are bound to the apartment that made them, so windows-rs does not
-/// mark them `Send` — hold one across an `.await` and the whole future stops
-/// being `Send`, which `tokio::spawn` requires of the pump. The sessions inside
-/// it are agile and `Send`, so draining the view here and dropping it before any
-/// await is what keeps the async path usable.
+/// An owned `Vec`: WinRT collections are not `Send`, and holding one across an
+/// `.await` would stop the pump's future being spawnable.
 async fn live_sessions() -> Result<Vec<SmtcSession>> {
     ensure_mta();
 
@@ -225,10 +167,8 @@ async fn live_sessions() -> Result<Vec<SmtcSession>> {
         .collect())
 }
 
-/// The parts of a session that read synchronously.
-///
-/// Split out so that none of the apartment-bound property objects are still
-/// alive when [`read_sessions`] awaits: same reasoning as [`live_sessions`].
+/// Synchronous reads, so no apartment-bound object is alive when
+/// [`read_sessions`] awaits.
 fn read_sync(session: &SmtcSession) -> Option<(String, i32, i64, i64)> {
     let app_id = session.SourceAppUserModelId().ok()?.to_string();
     let status = session.GetPlaybackInfo().ok()?.PlaybackStatus().ok()?.0;
@@ -242,11 +182,6 @@ fn read_sync(session: &SmtcSession) -> Option<(String, i32, i64, i64)> {
     Some((app_id, status, position_ticks, end_ticks))
 }
 
-/// Read every session out of WinRT.
-///
-/// WinRT's async operations are futures here, not blocking calls: windows-rs
-/// gives `IAsyncOperation` an `IntoFuture`, so this awaits on the normal runtime
-/// rather than occupying a blocking thread.
 async fn read_sessions() -> Result<Vec<RawSession>> {
     let sessions = live_sessions().await?;
 
@@ -256,9 +191,8 @@ async fn read_sessions() -> Result<Vec<RawSession>> {
             continue;
         };
 
-        // The media properties are a second async call and the likeliest to
-        // fail. A session without them is still a player worth reporting; it
-        // just has no track yet.
+        // The media properties are the likeliest call to fail; a session
+        // without them is still a player, just with no track yet.
         let props = match session.TryGetMediaPropertiesAsync() {
             Ok(op) => op.await.ok(),
             Err(_) => None,
@@ -389,12 +323,8 @@ impl PlayerHandle {
         toggle(&self.name).await
     }
 
-    /// Spawn the event pump.
-    ///
-    /// Polling, like macOS. SMTC does expose change events, but they are an
-    /// optimisation rather than a requirement: [`crate::sync::SyncEngine`]'s
-    /// `Tick` arm already re-anchors on divergence, which is how a scrub is
-    /// picked up on the other two backends as well.
+    /// Polling, like macOS: the `Tick` arm already re-anchors on divergence, so
+    /// SMTC's change events are not needed.
     pub fn spawn(self, poll_interval: Duration) -> (EventRx, tokio::task::JoinHandle<()>) {
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = tokio::spawn(async move {
@@ -426,9 +356,8 @@ impl PlayerHandle {
                         return;
                     }
                 },
-                // The probe itself failed. That is not the same as the player
-                // being gone, and one unlucky read is a poor reason to tear the
-                // visualiser down.
+                // The probe itself failed; one unlucky read is no reason to
+                // tear the view down.
                 Err(_) => {
                     misses += 1;
                     if misses >= MISSES_BEFORE_GONE {

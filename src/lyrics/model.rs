@@ -1,8 +1,5 @@
-//! The lyrics model the providers answer in, and the track they are asked about.
-//!
-//! It serialises to the JSON the cache files hold, so its fields are a file
-//! format (see [`super::cache`]). Display never reads this directly:
-//! [`super::display`] turns it into [`crate::lrc::Lyrics`] once, at the end.
+//! Serialises to the JSON the cache files hold, so its fields are a file format
+//! (see [`super::cache`]).
 
 use std::collections::BTreeMap;
 
@@ -304,9 +301,8 @@ impl Request {
     }
 }
 
-/// Lowercase one char at a time, the way Go's `strings.ToLower` does: no
-/// context-dependent final sigma, and `İ` is plain `i`. Cache keys are built
-/// from this, so it must not drift.
+/// Lowercase char by char like Go's `strings.ToLower` (no final sigma, `İ` is
+/// `i`): cache keys are built from it, so it must not drift.
 pub(crate) fn go_lower(s: &str) -> String {
     s.chars()
         .map(|c| {

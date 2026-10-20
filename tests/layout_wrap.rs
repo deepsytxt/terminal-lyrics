@@ -210,9 +210,8 @@ fn row_text(line: &ratatui::text::Line<'_>) -> String {
 
 #[test]
 fn a_partly_revealed_word_holds_the_place_of_the_whole_one() {
-    // A word timed in syllables is drawn a piece at a time. Laying out only the
-    // pieces sung so far would centre a fragment, and the word would crawl
-    // sideways as it filled in. It must sit still.
+    // A syllable-timed word is laid out whole, or it would crawl sideways as it
+    // filled in.
     let f = font::mini();
     let theme = Theme::default();
     let whole = render(
@@ -277,9 +276,8 @@ fn inked(text: &ratatui::text::Text<'_>) -> Vec<(usize, Vec<Style>)> {
         .collect()
 }
 
-/// Drawn at full strength in `colour`. A background vocal shares the line's
-/// colour and differs only in being faint, so the colour alone cannot say which
-/// voice a row belongs to.
+/// Drawn at full strength in `colour`: a background vocal shares the colour and
+/// differs only in being faint.
 fn drawn_in(styles: &[Style], colour: Color) -> bool {
     styles
         .iter()
@@ -474,9 +472,8 @@ fn both_voices_step_down_together_before_either_is_dropped() {
 
 #[test]
 fn the_main_line_keeps_its_solo_size_when_the_second_voice_is_dropped() {
-    // The one thing that must never happen: shrinking the lyric to make room
-    // for a voice that then does not fit anyway, leaving the reader with a
-    // smaller line and nothing to show for it.
+    // Never shrink the lyric to make room for a voice that then does not fit
+    // anyway.
     let theme = Theme::default();
     let alone = render(&lyric("LOVE", None), &font::block(), 80, 5, theme);
     let paired = render(
@@ -544,9 +541,8 @@ fn the_font_helper_steps_down_monotonically() {
 
 #[test]
 fn the_capitals_stay_put_when_a_word_brings_an_accent_or_a_descender() {
-    // Word by word, "Hey" follows "HEY" follows "HÉY". The rows an accent or
-    // a descender adds must not push the letters themselves up or down, or
-    // every word would bob.
+    // The rows an accent or a descender adds must not move the letters
+    // themselves, or every word would bob.
     let f = font::block();
     let cap_row = |text: &str| {
         let out = render(

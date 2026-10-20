@@ -1,10 +1,5 @@
-//! Provider lyrics to display lyrics.
-//!
-//! The renderer reads [`crate::lrc::Lyrics`], whose parser already knows how a
-//! second voice is hung on a line, when two lines are a duet rather than slop,
-//! and how a word's highlight ends. So the conversion writes enhanced LRC —
-//! with the `[bg:]` and `[end:]` markers that parser understands — and parses
-//! it, instead of building the display model a second way.
+//! Writes enhanced LRC and parses it, rather than building the display model a
+//! second way: [`crate::lrc`] already knows voices, duets and word ends.
 
 use super::model::{Line, Lyrics, Word};
 use crate::lrc;
@@ -15,9 +10,8 @@ fn stamp(secs: f64) -> String {
     format!("{:02}:{:02}.{:03}", ms / 60_000, ms / 1000 % 60, ms % 1000)
 }
 
-/// Appends text, with every run of whitespace written as one space. Sources
-/// that pretty-print their markup leave indentation between the words, which
-/// would otherwise open a hole in the line on screen.
+/// Collapses whitespace runs: pretty-printed markup leaves indentation between
+/// words that would open a hole in the line.
 struct Body {
     out: String,
     space: bool,

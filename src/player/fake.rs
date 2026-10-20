@@ -1,8 +1,4 @@
 //! A scripted player, so the sync engine can be tested without a bus.
-//!
-//! Sync logic that can only be exercised by playing music and watching is
-//! effectively untested. Here a test writes a timeline of events and asserts on
-//! what the clock believed at each step.
 
 use std::time::{Duration, Instant};
 
@@ -52,7 +48,6 @@ impl FakePlayer {
     }
 }
 
-/// Convenience for building scripts in tests.
 pub fn at(ms: u64, event: PlayerEvent) -> Scripted {
     Scripted {
         at: Duration::from_millis(ms),

@@ -166,9 +166,8 @@ fn repeated_metadata_for_the_same_track_does_not_trigger_a_refetch() {
 
 #[test]
 fn a_length_that_arrives_late_triggers_a_second_lookup() {
-    // Spotify sends the new title with the last track's length, then the
-    // real length under the same id. The first lookup asked for the wrong
-    // length, which is enough for a provider to reject the match.
+    // Spotify sends the new title with the last track's length, then the real
+    // length under the same id, and a lookup with the wrong length can miss.
     let t0 = Instant::now();
     let mut e = engine(t0);
     let mut stale = track("id-1");
@@ -210,7 +209,6 @@ fn a_scripted_session_ends_where_the_arithmetic_says_it_should() {
                     playing: true,
                 },
             ),
-            // Pause two seconds later.
             at(
                 5_000,
                 PlayerEvent::Status {
@@ -218,7 +216,6 @@ fn a_scripted_session_ends_where_the_arithmetic_says_it_should() {
                     position: 62.0,
                 },
             ),
-            // Resume after a long gap.
             at(
                 20_000,
                 PlayerEvent::Status {

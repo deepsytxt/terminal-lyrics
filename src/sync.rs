@@ -1,10 +1,5 @@
-//! Player events in, a believable playback position out.
-//!
-//! Kept separate from the TUI so it can be driven by [`crate::player::fake`] in
-//! a test. The rule is simple: the player is always right when it speaks, and
-//! between utterances we interpolate. The `Tick` arm is the interesting one —
-//! it re-anchors only on real divergence, so a player that reports position a
-//! few milliseconds off does not cause a visible jump every second.
+//! The player is right whenever it speaks and the position is interpolated in
+//! between; a `Tick` re-anchors only on real divergence, so it does not jump.
 
 use std::time::{Duration, Instant};
 
@@ -20,9 +15,7 @@ pub enum Change {
     Track(Option<Box<Track>>),
     /// The position moved somewhere unpredicted.
     Resynced,
-    /// The player disappeared.
     Gone,
-    /// Nothing the caller must act on.
     None,
 }
 
@@ -66,12 +59,9 @@ impl SyncEngine {
         match event {
             PlayerEvent::Track(next) => {
                 let next = next.map(|b| *b);
-                // MPRIS players re-emit metadata for all sorts of reasons
-                // (art loaded, rating changed). Only a real identity change
-                // should throw away the lyrics we already have — or a change
-                // to what the lookup asks for: Spotify announces the new
-                // title with the last track's length still attached, and the
-                // real one follows under the same id.
+                // Players re-emit metadata when art loads or a rating changes.
+                // Only a new id, or a new lookup key (Spotify's real length
+                // arrives late), drops the lyrics.
                 let same = match (&self.track, &next) {
                     (Some(a), Some(b)) => a.id == b.id && lookup_key(a) == lookup_key(b),
                     (None, None) => true,

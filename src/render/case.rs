@@ -1,19 +1,13 @@
-//! Which case the lyrics are drawn in.
-//!
-//! Every mapping here is one character to one character. The sweep and the
-//! syllable reveal count characters of the source line, so a `ß` that became
-//! `SS` would put every highlight after it one letter out. A character whose
-//! other case is longer than itself keeps its own form instead.
+//! Every mapping is one character to one: the sweep counts characters, so a `ß`
+//! that became `SS` would put every later highlight one letter out.
 
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Case {
-    /// All capitals, the look the program has always had.
     #[default]
     Upper,
-    /// All lowercase.
     Lower,
 }
 

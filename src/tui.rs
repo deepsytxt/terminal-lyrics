@@ -1,9 +1,5 @@
-//! Terminal lifecycle and the event loop.
-//!
-//! The loop is woken by whichever comes first: a key, a player event, a lyrics
-//! lookup finishing, or the redraw tick. Only the tick is periodic, and all it
-//! does is advance the sweep — ratatui diffs the buffer, so an unchanged screen
-//! costs no output at all, rather than reprinting everything on a timer.
+//! Only the redraw tick is periodic; ratatui diffs the buffer, so an unchanged
+//! screen costs no output.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,12 +30,10 @@ enum LyricState {
     Idle,
     /// A track is loaded and a lookup is in flight.
     Searching,
-    /// Lyrics are loaded.
     Ready {
         timeline: Box<Timeline>,
         source: Source,
-        /// Whether the source carries real per-word timestamps. Decided once,
-        /// when the lyrics load, rather than per frame.
+        /// Real per-word timestamps, decided once when the lyrics load.
         word_timed: bool,
         /// What the timeline was built from, so an answer that changes
         /// nothing does not rebuild it.
@@ -49,7 +43,6 @@ enum LyricState {
     Missing,
 }
 
-/// Build the loaded state, noting up front whether the timings are real.
 fn ready_from(found: crate::lyrics::Found) -> LyricState {
     let word_timed = found.lyrics.has_word_timings();
     LyricState::Ready {
@@ -92,9 +85,7 @@ pub struct App {
 impl App {
     pub fn new(cfg: Config, offsets: Offsets, prefs: Prefs, now: Instant) -> Self {
         let font = font::by_name(&cfg.font).unwrap_or_else(font::block);
-        // Read once at startup rather than per frame: a palette on disk is not
-        // going to change mid-song, and the draw loop should not touch the
-        // filesystem.
+        // Read once: the draw loop should not touch the filesystem.
         let theme = Theme::with_accent(cfg.color_source.accent()).with_dim(cfg.dim_color);
         let engine = SyncEngine::new(
             cfg.offset_ms,
@@ -115,10 +106,8 @@ impl App {
         }
     }
 
-    /// Feed a player event through the sync engine, adopting the new track's
-    /// saved offset whenever the track actually changes. The caller still gets
-    /// the [`Change`] back and still has to start the lookup — but the offset
-    /// half of "a new song loaded" lives here, where it cannot be forgotten.
+    /// Adopts the new track's saved offset here, where it cannot be forgotten;
+    /// the caller still starts the lookup.
     pub fn apply_player_event(&mut self, event: PlayerEvent, now: Instant) -> Change {
         let change = self.engine.apply(event, now);
         if matches!(change, Change::Track(_)) {
@@ -127,10 +116,8 @@ impl App {
         change
     }
 
-    /// Point the clock at whichever offset belongs to the track now loaded:
-    /// its own if it has ever been nudged, the configured starting point if
-    /// not. Called on every track change, which is what stops a correction
-    /// made for one song from following you into the next.
+    /// Called on every track change, so a correction for one song does not
+    /// follow you into the next.
     pub fn adopt_track_offset(&mut self) {
         let key = self
             .engine
@@ -147,8 +134,7 @@ impl App {
         self.save_offset();
     }
 
-    /// Put the current track back to the configured starting point and forget
-    /// it, so it is once again a track nobody has corrected.
+    /// Back to the configured starting point, and forgotten.
     pub fn reset_offset(&mut self) {
         self.engine.clock_mut().set_offset_ms(self.cfg.offset_ms);
         if let Some(track) = self.engine.track() {
@@ -157,10 +143,8 @@ impl App {
         }
     }
 
-    /// Store the clock's offset against the current track — unless it equals
-    /// the default, in which case the entry is dropped rather than written.
-    /// Absence is how the file spells "never tuned", and a nudge that lands
-    /// back on the default should leave no trace behind.
+    /// An offset equal to the default drops the entry: absence spells "never
+    /// tuned".
     fn save_offset(&mut self) {
         let Some(track) = self.engine.track() else {
             return;
@@ -179,9 +163,8 @@ impl App {
         self.engine.clock().offset_ms()
     }
 
-    /// Save a display key's new setting to the config file and say what it
-    /// is now. One that cannot be saved still applies for this run, and the
-    /// notice says why it will not be there next time.
+    /// A setting that cannot be saved still applies for this run, and the
+    /// notice says why.
     fn remember(&mut self, key: &str, value: impl Into<toml_edit::Value>, msg: impl Into<String>) {
         let msg = msg.into();
         match self.prefs.set(key, value) {
@@ -203,9 +186,8 @@ impl App {
 /// How often to look for a player again once the one being followed closes.
 const RECONNECT_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Run the visualiser until the user quits. A player that closes is not a
-/// reason to stop: the screen goes back to "nothing playing" and the next
-/// player to start is picked up.
+/// A player that closes is not a reason to stop: the next one to start is
+/// picked up.
 pub async fn run(
     cfg: Config,
     session: Session,
@@ -255,7 +237,6 @@ async fn run_inner(
         }
 
         tokio::select! {
-            // Player state.
             event = next_event(&mut link) => {
                 let now = Instant::now();
                 let gone = matches!(event, PlayerEvent::Gone);
@@ -291,12 +272,10 @@ async fn run_inner(
                 }
             }
 
-            // A background lookup finished.
             Some(result) = fetch_rx.recv() => {
                 apply_fetch(&mut app, result);
             }
 
-            // Keyboard.
             Some(Ok(event)) = keys.next() => {
                 if let Event::Key(key) = event {
                     let player = link.as_ref().map(|l| &l.control);
@@ -340,10 +319,8 @@ fn visualizer_bars(app: &App, size: ratatui::layout::Size) -> Option<usize> {
     Some(bars::bar_count(usize::from(size.width))).filter(|&n| n > 0)
 }
 
-/// Start, stop or restart cava so it matches the window. cava is told its bar
-/// count up front, so a resize that changes it means a new cava; one that does
-/// not leaves it running. The height is not cava's business: it is worked out
-/// per frame, from the room the lyrics leave.
+/// cava is told its bar count up front, so a resize that changes it means a new
+/// cava. The height is worked out per frame, from the room the lyrics leave.
 fn sync_visualizer(app: &mut App, cava: &mut Option<Cava>, size: ratatui::layout::Size) {
     let want = visualizer_bars(app, size);
     if cava.as_ref().map(|c| c.bars) == want {
@@ -423,9 +400,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                             0
                         };
 
-                        // A second voice singing over this line, if the user
-                        // wants both on screen. The parser always works them
-                        // out; this only decides whether we ask.
+                        // The parser always works out the second voice; this
+                        // only decides whether we ask.
                         let mut voice = None;
                         if app.cfg.overlapping_voices
                             && let Some(s) = timeline.secondary(index, pos)
@@ -438,25 +414,16 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                         }
                         let partner = voice.filter(|s| !s.background);
 
-                        // With real word timings, show the word being sung on
-                        // its own. Decided per line, not per file: a source can
-                        // carry tags on some lines and not others, and those
-                        // lines must still appear in full rather than vanish.
-                        //
-                        // A duet partner goes word by word alongside, so both
-                        // voices step through their words together — but only
-                        // if it has words of its own. One word of one phrase
-                        // stacked under all of the other reads as a mistake, so
-                        // a partner without timings keeps both phrases whole. A
-                        // background vocal is texture, and sits happily over a
-                        // single word either way.
+                        // Word by word is decided per line: a source can tag
+                        // some lines and not others. A duet partner without
+                        // timings keeps both phrases whole, since one word
+                        // stacked under a whole phrase reads as a mistake.
                         let split = app.cfg.word_by_word
                             && !line.words.is_empty()
                             && partner.is_none_or(|p| !p.words.is_empty());
 
-                        // The second voice gets the same split as the line, and
-                        // a duet partner the same sweep too; a background vocal
-                        // is never swept. One without word timings stays whole.
+                        // The second voice gets the line's split, and a duet
+                        // partner its sweep; a background vocal is never swept.
                         if let Some(s) = voice {
                             second_highlight = if sweep {
                                 timeline.second_highlight_chars(index, pos)
@@ -481,15 +448,12 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                         }
 
                         match split {
-                            // The whole word is handed to the renderer even when
-                            // only some of its syllables have been sung, so it is
-                            // laid out at its final size and stays put as it
-                            // fills in. Passing just the sung part would centre a
-                            // fragment, and the word would crawl sideways with
-                            // every syllable.
+                            // The whole word goes to the renderer, so it is
+                            // laid out at its final size and does not crawl
+                            // sideways as its syllables fill in.
                             true => {
                                 // The line has started but its first word has
-                                // not; hold the screen rather than flashing the
+                                // not: hold the screen rather than flash the
                                 // whole line for a frame.
                                 if let Some(word) = timeline.active_word(index, pos) {
                                     // The highlight is an offset into the whole
@@ -561,7 +525,6 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
             }
         }
 
-        // One-line status strip along the bottom.
         if let Some(status) = status_line(app)
             && area.height > 0
         {
@@ -577,16 +540,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
     Ok(())
 }
 
-/// The one-line strip along the bottom.
-///
-/// Just where the lyrics came from — `betterlyrics`, `lrclib`, … — or a
-/// filename.
-/// Everything else that could go here (sync mode, offset, paused) is either
-/// visible on screen already or available from `lyrics status`; on the strip it
-/// was noise sitting under the lyrics.
-///
-/// The exception is the transient notice after a keypress, which is the only
-/// feedback `,` `.` `f` `w` `s` have.
+/// Just where the lyrics came from, or the notice after a keypress: everything
+/// else is on screen already or in `lyrics status`.
 fn status_line(app: &App) -> Option<String> {
     if let Some(notice) = app.notice_text() {
         return Some(format!(" {notice}"));
@@ -597,11 +552,8 @@ fn status_line(app: &App) -> Option<String> {
     }
 }
 
-/// Kick off a lookup for a newly loaded track.
-///
-/// Whatever is already known — a file next to the track, a cached answer — is
-/// shown at once, and the full lookup still runs behind it: a provider ahead of the cached one may have an answer by now, and the
-/// race is what decides.
+/// What is already known is shown at once, and the full race still runs behind
+/// it: a provider ahead of the cached one may have an answer by now.
 fn start_lookup(
     app: &mut App,
     track: Option<Track>,
@@ -673,17 +625,12 @@ fn apply_fetch(app: &mut App, result: FetchResult) {
 /// What `,` and `.` move the sync by.
 const FINE_NUDGE_MS: i64 = 100;
 
-/// What `<` and `>` move it by.
-///
-/// A hundred milliseconds is the right step for the last of a correction and
-/// the wrong one for the start of it: an answer timed against a different
-/// master is out by two or three whole seconds, which is thirty presses of `.` at the fine step. The
-/// coarse key is the same correction in three, and lands close enough that the
-/// fine one has something to finish.
+/// What `<` and `>` move it by: an answer timed against another master is two
+/// or three seconds out, thirty presses of the fine step.
 const COARSE_NUDGE_MS: i64 = 1000;
 
-/// Move the current song's sync and say so. Shared by all four nudge keys so
-/// the message and the save cannot drift apart between them.
+/// Shared by all four nudge keys so the message and the save cannot drift
+/// apart.
 fn nudge(app: &mut App, delta_ms: i64) {
     app.nudge_offset(delta_ms);
     let off = app.offset_ms();

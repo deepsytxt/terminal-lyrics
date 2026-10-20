@@ -1,15 +1,6 @@
-//! Renders the README demo, `docs/demo-dark.gif` and `docs/demo-light.gif`.
-//! `cargo run --example demo_gif`.
-//!
-//! Each frame is the program's own [`render::render`] output, with every
-//! terminal cell drawn as solid rectangles — the whole cell for `█`, its top or
-//! bottom half for `▀` and `▄` — rather than captured through a terminal font.
-//! A font whose blocks do not fill their cell leaves a hairline between them;
-//! here there is no font to get it wrong, so the result is the same on any
-//! machine.
-//!
-//! The background is transparent, and the two files differ only in ink: the
-//! README picks one to match the GitHub theme.
+//! Renders `docs/demo-dark.gif` and `docs/demo-light.gif`. Cells are drawn as
+//! solid rectangles rather than through a font, so there are no hairlines
+//! between blocks.
 use std::fs::File;
 use std::path::Path;
 
@@ -30,9 +21,8 @@ const VARIANTS: [(&str, [u8; 3]); 2] = [
     ("docs/demo-light.gif", [0x37, 0x60, 0xbf]),
 ];
 
-/// One frame: the word on screen, how many of its characters are inked, and
-/// how long it stays up, in hundredths of a second. A word timed in syllables
-/// appears as the same word with more of it revealed.
+/// The word on screen, how many of its characters are inked, and how long it
+/// stays up, in hundredths of a second.
 const FRAMES: &[(&str, usize, u16)] = &[
     ("", 0, 66),
     ("one", 3, 49),

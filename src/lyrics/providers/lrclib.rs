@@ -1,9 +1,5 @@
-//! LRCLIB: line-synced LRC, and now and then a word-timed Lyricsfile.
-//!
-//! `/api/get` prefers sync only among records with the track's exact
-//! signature, and the same song is published under many. A plain or missing
-//! answer gets a title search instead, and the best record for the same track
-//! and artist within a few seconds of the length wins.
+//! LRCLIB. `/api/get` prefers sync only among records with the exact signature,
+//! so a plain or missing answer falls back to a title search.
 
 use std::time::Duration;
 

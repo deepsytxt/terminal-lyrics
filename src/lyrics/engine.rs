@@ -1,14 +1,6 @@
-//! The lookup itself: every provider at once, the best answer wins.
-//!
-//! Providers are asked concurrently, but their order still means something.
-//! Sync outranks priority — word over line over plain — and among equals the
-//! earlier provider wins, so a fast answer from low in the list is held until
-//! everything ahead of it that could match it has finished. An answer wins as
-//! soon as nothing still out can beat it; once priority alone has a winner, the
-//! wait for better sync is bounded by [`SYNC_GRACE`].
-//!
-//! Around each provider: its cache entry first, then a rate limit, then the
-//! fetch, whose answer — hit or miss — goes back into the cache.
+//! Every provider at once. Sync outranks priority and the earlier provider wins
+//! among equals, so a fast answer is held while anything ahead could still
+//! match.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -42,7 +34,6 @@ pub trait Fetch: Send + Sync {
     fn fetch(&self, req: Request) -> FetchFuture;
 }
 
-/// One provider.
 #[derive(Clone)]
 pub struct Source {
     /// Whether this provider usually has word timing, which is what makes a
@@ -51,7 +42,6 @@ pub struct Source {
     pub fetch: Arc<dyn Fetch>,
 }
 
-/// Where an answer came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Origin {
     Nowhere,
@@ -381,8 +371,7 @@ impl Engine {
         self.cache.store(key, &mut entry);
     }
 
-    /// Swap a line-synced entry for word sync once the provider has it. The
-    /// entry is restamped either way, so the provider is asked once per
+    /// The entry is restamped either way, so the provider is asked once per
     /// upgrade period rather than on every play.
     async fn upgrade_entry(
         &self,

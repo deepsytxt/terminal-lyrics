@@ -1,13 +1,5 @@
-//! The spectrum strip under the lyrics, from a `cava` running alongside.
-//!
-//! cava does the audio side — capture, FFT, smoothing — and is asked for raw
-//! ASCII frames on its stdout, one line per frame, one number per bar. The
-//! user's own `~/.config/cava/config` is the starting point, so whatever input
-//! they have already set up (a PipeWire node, a PulseAudio monitor) is what
-//! gets captured here too; only the output side is replaced with ours.
-//!
-//! Everything with a decision in it — the config that is written, the frame
-//! parser — is pure. The process itself is only spawned and read.
+//! The spectrum strip, from a `cava` started from the user's own config, so
+//! their input setup is kept and only the output side is replaced.
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -17,9 +9,8 @@ use tokio::io::{AsyncBufReadExt as _, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::watch;
 
-/// The top of the range cava reports in. Fixed, rather than the height of the
-/// strip, because the strip's height follows the lyrics above it and changes
-/// from line to line; the bars are scaled to it as they are drawn instead.
+/// Fixed rather than the strip's height, which changes from line to line; the
+/// bars are scaled to the strip as they are drawn.
 pub const MAX_LEVEL: u16 = 1000;
 
 /// Sections of the user's config that are about the sound, and so are kept.
@@ -32,11 +23,8 @@ const OURS: &[&str] = &["bars", "bar_width", "bar_spacing", "framerate"];
 /// Keys of the user's `[output]` that still apply to raw output.
 const KEPT_OUTPUT: &[&str] = &["channels", "mono_option", "reverse"];
 
-/// The config to hand cava: the user's sound settings, our shape, raw output.
-///
-/// `user` is the text of the user's own config, if they have one. It is
-/// filtered line by line rather than parsed, so comments and anything this
-/// does not know about pass through unchanged.
+/// The user's config is filtered line by line rather than parsed, so comments
+/// and unknown keys pass through unchanged.
 pub fn config_text(user: Option<&str>, bars: usize, framerate: u32) -> String {
     let mut kept: Vec<(String, Vec<String>)> = Vec::new();
     let mut output: Vec<String> = Vec::new();
@@ -94,9 +82,8 @@ pub fn config_text(user: Option<&str>, bars: usize, framerate: u32) -> String {
     out
 }
 
-/// One frame, `3;7;0;12;` — the trailing delimiter is cava's, not an empty
-/// bar. Anything that is not a number reads as silence rather than an error:
-/// one garbled frame is gone a frame later.
+/// `3;7;0;12;`: the trailing `;` is cava's, not an empty bar. Garbage reads as
+/// silence, since a garbled frame is gone a frame later.
 pub fn parse_frame(line: &str) -> Vec<u16> {
     line.trim()
         .split(';')
@@ -183,7 +170,6 @@ impl Cava {
         })
     }
 
-    /// The bars as they stand.
     pub fn levels(&self) -> Vec<u16> {
         self.frames.borrow().clone()
     }

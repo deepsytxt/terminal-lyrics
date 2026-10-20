@@ -1,10 +1,5 @@
-//! Lyrics files sitting next to the track itself.
-//!
-//! For `file:///music/get-lucky.flac` the whole search is, in order:
-//! `/music/get-lucky.lyricsfile.yaml`, `.ttml`, `.lrc`, `.LRC`. There is no
-//! library scan. The first that parses to something wins, beats every
-//! provider, and needs no network. MPRIS players report the URL as
-//! `xesam:url`.
+//! Lyrics files next to the track: `.lyricsfile.yaml`, `.ttml`, `.lrc`, `.LRC`,
+//! in that order, with no library scan. A hit beats every provider.
 
 use std::ffi::OsString;
 use std::io::Read;

@@ -132,9 +132,8 @@ fn a_paragraph_end_is_written_out_instead_of_discarded() {
 
 #[test]
 fn a_quarter_second_overlap_is_slop_not_a_duet() {
-    // The median overlap across the database is a quarter of a second: one
-    // phrase's tail running into the next one's head. Stacking those would put
-    // a second line on screen a couple of times a song for a few frames each.
+    // The median overlap is a quarter second of one phrase's tail; stacking
+    // those would flash a second line on screen for a few frames at a time.
     let parsed = show(&fixture("duet_bg.ttml"));
     let after = parsed
         .lines
@@ -241,9 +240,8 @@ fn every_time_form_is_understood() {
 #[test]
 fn a_file_mixing_both_time_formats_keeps_every_line() {
     let parsed = show(&fixture("mixed_timeformat.ttml"));
-    // The fixture is trimmed to nine lines that straddle the one-minute mark:
-    // five written as bare seconds, four with a colon. Before the fix the five
-    // were silently dropped.
+    // Nine lines straddling the minute mark: five in bare seconds, which used
+    // to be dropped, and four with a colon.
     assert_eq!(parsed.lines.len(), 9, "every line must survive");
     assert_eq!(
         parsed.lines.iter().filter(|l| l.start < 60.0).count(),
@@ -263,9 +261,8 @@ fn a_file_mixing_both_time_formats_keeps_every_line() {
 
 #[test]
 fn syllable_spans_survive_the_conversion_as_one_word() {
-    // TTML splits a long word into consecutive spans with nothing between them.
-    // The A2 output must keep them touching, or the display cannot tell a
-    // syllable from a word.
+    // A long word's spans touch; the A2 output must keep them touching, or the
+    // display cannot tell a syllable from a word.
     let xml = r#"<tt xmlns="http://www.w3.org/ns/ttml"><body><div>
       <p begin="00:01.000" end="00:03.000"><span begin="00:01.000" end="00:01.200">be</span><span begin="00:01.200" end="00:01.800">lieve</span> <span begin="00:02.000" end="00:03.000">me</span></p>
     </div></body></tt>"#;

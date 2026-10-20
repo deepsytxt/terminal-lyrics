@@ -1,6 +1,5 @@
-//! The glyph art. What matters is that no letter of a Latin-script lyric is
-//! ever drawn as a blank, that the accents land where they should, and that
-//! two different characters never come out looking the same.
+//! No Latin letter is drawn blank, accents land where they should, and no two
+//! characters look the same.
 
 use terminal_lyrics::render::font::{self, Font, Glyph};
 use terminal_lyrics::render::layout::layout;
@@ -33,8 +32,7 @@ fn art(f: &Font, c: char) -> terminal_lyrics::render::font::Bitmap {
     }
 }
 
-/// The glyph as it would be seen: its pixels, ignoring where the canvas
-/// happens to start.
+/// The glyph's pixels, ignoring where the canvas starts.
 fn picture(f: &Font, c: char) -> Vec<Vec<bool>> {
     let b = art(f, c);
     let Some((top, bottom)) = b.ink_rows() else {

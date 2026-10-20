@@ -1,13 +1,5 @@
-//! Placeholder for platforms with no backend yet.
-//!
-//! Its job is to keep the crate compiling and `cargo test` covering the pure
-//! layer everywhere, so that adding a real backend is a new module and nothing
-//! else. If this ever runs, it says so plainly rather than failing obscurely.
-//!
-//! Linux, macOS and Windows all have one now, so what is left here is the BSDs,
-//! and whatever else Rust targets. On a BSD the answer is almost certainly
-//! [`super::mpris`] as it stands — MPRIS is a freedesktop specification, not a
-//! Linux one — so the work is widening a `cfg`, not writing a module.
+//! Platforms with no backend yet. On a BSD the answer is probably
+//! [`super::mpris`] as it stands: MPRIS is freedesktop, so widen its `cfg`.
 
 use std::time::Duration;
 

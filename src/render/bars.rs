@@ -1,8 +1,4 @@
 //! Spectrum bars, drawn in eighth blocks.
-//!
-//! Each cell can show a bar one to eight eighths full, so a strip `rows` tall
-//! has `rows * 8` steps. Levels come in on a fixed scale, up to `max`, and are
-//! fitted to however many rows there are this frame.
 
 use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
@@ -14,18 +10,14 @@ pub const BAR_GAP: usize = 1;
 
 const EIGHTHS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
-/// How many bars fit across `width` columns. Always even, because cava's
-/// stereo output mirrors one channel against the other and wants pairs; zero
-/// when not even a pair fits.
+/// Always even: cava's stereo output mirrors one channel against the other.
 pub fn bar_count(width: usize) -> usize {
     let n = (width + BAR_GAP) / (BAR_WIDTH + BAR_GAP);
     n - n % 2
 }
 
-/// The strip, `rows` tall and centred across `width`, a level of `max`
-/// reaching the top. Bars that do not fit — a frame from before a resize — are
-/// dropped from both ends, so the middle, where stereo puts the bass, stays
-/// put.
+/// Bars that do not fit (a frame from before a resize) are dropped from both
+/// ends, so the middle, where stereo puts the bass, stays put.
 pub fn render(levels: &[u16], max: u16, rows: usize, width: usize, style: Style) -> Text<'static> {
     let steps = rows * 8;
     let max = usize::from(max.max(1));

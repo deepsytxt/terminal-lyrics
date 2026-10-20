@@ -1,13 +1,5 @@
-//! The disk cache: one JSON file per track per provider, hits and misses both.
-//!
-//! The layout, the keys and the file contents are a fixed format, to the byte,
-//! so the directory can be shared with another reader of it: whatever either
-//! side looked up, the other reads instead of asking again. [`default_dir`]
-//! picks the shared directory when it exists.
-//!
-//! A miss is kept for 14 days. A line-synced hit older than 14 days is asked
-//! for again once, and replaced only if word sync came back. Anything older
-//! than 90 days is pruned, at most once a day.
+//! The format is fixed to the byte so the directory can be shared with another
+//! reader: whatever either side looked up, the other reads instead of asking.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -165,8 +157,8 @@ impl Cache {
         }
     }
 
-    /// Remove entries older than 90 days, in the background, at most once a
-    /// day — whichever reader of the directory gets there first.
+    /// Remove entries older than 90 days, at most once a day across every
+    /// reader.
     pub fn prune(&self) {
         let Some(root) = self.dir.clone() else { return };
         let sentinel = root.join(PRUNE_SENTINEL);

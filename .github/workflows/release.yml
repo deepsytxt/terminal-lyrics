@@ -1,9 +1,5 @@
-# Tag `vX.Y.Z` and push it; this builds a binary for every supported target and
-# attaches them to a GitHub Release.
-#
-# The point is that installing should not require a Rust toolchain. `cargo
-# install terminal-lyrics` covers people who have one; this covers everyone else,
-# and it is what the AUR `-bin` package downloads.
+# Push a `vX.Y.Z` tag to build every target's binary and attach them to a GitHub
+# Release, which the AUR `-bin` package downloads.
 name: Release
 
 on:
@@ -48,10 +44,8 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # `rustls` pulls `aws-lc-rs`, which compiles BoringSSL from source, so a
-      # musl build needs a musl-targeting C compiler and cmake — neither is on
-      # the runner by default, and without them the C build fails long before
-      # any Rust does.
+      # aws-lc-sys compiles BoringSSL, so musl needs a musl C compiler and
+      # cmake.
       - name: Install musl toolchain
         if: endsWith(matrix.target, '-musl')
         run: |
@@ -64,18 +58,8 @@ jobs:
           AR_x86_64_unknown_linux_musl: ar
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      # `[profile.release]` already sets `strip = true`, so the binary that comes
-      # out of the build is the one to ship.
-      #
-      # Everything is a .tar.gz, Windows included. A .zip would be the more
-      # familiar download there, but `tar` has shipped in Windows since 10 and
-      # one archive format means one code path — worth more than the convention.
-      #
-      # No checksum file is published alongside these. GitHub computes a SHA-256
-      # for every asset on upload and shows it in the release page and the API
-      # (`.assets[].digest`), so a sidecar would only repeat it — and repeat it
-      # less trustworthily, being written by the same job that built the archive
-      # rather than by the server receiving it.
+      # .tar.gz everywhere, Windows included (`tar` ships since Windows 10). No
+      # checksum file: GitHub records each asset's SHA-256 on upload.
       - name: Package
         shell: bash
         run: |
@@ -118,17 +102,12 @@ jobs:
 
   crates-io:
     name: Publish to crates.io
-    # Last, and deliberately so. A GitHub release can be deleted and rebuilt; a
-    # crates.io version cannot. It can be yanked, but the number is spent for
-    # good. So this only runs once every target has built and the release is up.
+    # Last: a crates.io version cannot be rebuilt, only yanked, so this waits
+    # for every target and the release.
     needs: [build, release]
     runs-on: ubuntu-latest
-    # Trusted publishing: GitHub mints a short-lived OIDC token proving this
-    # workflow in this repository is what is asking, and crates.io swaps it for
-    # a registry token that expires in half an hour. There is no API token in
-    # the repository secrets to leak, rotate, or forget about. `contents: read`
-    # narrows the top-level `write`, which exists for the release job above and
-    # is not needed here.
+    # Trusted publishing: an OIDC token is swapped for a short-lived registry
+    # token, so there is no API token in the secrets.
     permissions:
       id-token: write
       contents: read
@@ -136,13 +115,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      # Both guards below are worth far more than the seconds they cost, for the
-      # same reason the job runs last: there is no undo.
-      #
-      # A tag that disagrees with the manifest is a bumped-and-forgot mistake,
-      # and it is silent everywhere else — the packaging step names archives
-      # from the tag, so `v0.3.0` would ship archives called 0.3.0 containing a
-      # 0.2.0 binary, and this would publish 0.2.0 over again.
+      # A tag that disagrees with the manifest would ship archives named for the
+      # tag holding the old binary, and publish the old version again.
       - name: Check the tag against the manifest
         run: |
           set -euo pipefail
@@ -155,14 +129,8 @@ jobs:
             exit 1
           fi
 
-      # Re-running a tag is supported above — the release action refreshes its
-      # assets. crates.io has no equivalent: publishing a version twice is an
-      # error. So check first and skip, letting a re-run finish green instead of
-      # failing on the one job that already did its work.
-      #
-      # A failure to reach the index at all (or a crate with no versions yet)
-      # falls through to the publish, which is the right way round: the worst
-      # case is a publish that errors, not a release that silently skips.
+      # Publishing a version twice is an error, so a re-run skips it. Failing to
+      # reach the index falls through to the publish, which then errors loudly.
       - name: Is this version already published?
         id: check
         run: |
@@ -191,9 +159,8 @@ jobs:
         if: steps.check.outputs.already == 'true'
         run: echo "::notice::${GITHUB_REF_NAME} is already on crates.io"
 
-  # The README's one-line install, against the release just published: a
-  # change to the archive names or layout should fail here, on the tag that
-  # made it, rather than for the next person to paste the line.
+  # The README's install line against the release just published, so a change to
+  # the archive names fails on the tag that made it.
   install-script:
     name: install.sh (${{ matrix.os }})
     needs: release

@@ -1,9 +1,5 @@
-//! Turning a playback position into "what should be on screen right now".
-//!
-//! Two separate questions: which line is active (binary search), and how much of
-//! it has been sung (the sweep). The sweep is interpolated when the source has
-//! no word tags — that interpolation is display-only and is never written back
-//! out. Guessed timings that get saved to disk stop looking like guesses.
+//! The sweep is interpolated when the source has no word tags; that guess is
+//! display-only and never written to disk.
 
 use std::ops::Range;
 
@@ -19,12 +15,8 @@ pub enum Position {
     Outro,
 }
 
-/// The word being sung: the whole word, plus how much of it has been reached.
-///
-/// The two differ when a source times a long word in syllables. The word is
-/// laid out whole so it sits where it will finally sit, and revealed a syllable
-/// at a time — showing only the sung syllables would put a bare fragment on the
-/// screen, and laying out only those would make the word crawl as it grew.
+/// Laid out whole and revealed a syllable at a time: laying out only the sung
+/// syllables would make the word crawl as it grew.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActiveWord {
     /// Char range of the whole word in [`crate::lrc::Line::text`].
@@ -85,15 +77,9 @@ impl Timeline {
         Position::Line { index: idx }
     }
 
-    /// The second voice over line `index` at `pos`, if one is singing.
-    ///
-    /// Windowed rather than simply tied to the line, because a second voice
-    /// rarely lines up with it: a background phrase usually comes in partway
-    /// through and stops before the line does, and a duet partner's phrase ends
-    /// while the line that took over runs on. Where two would be up at once the
-    /// most recent wins, the same rule [`Timeline::locate`] uses for lines.
-    ///
-    /// It can never outlive its host: `locate` moves on at `line.end`.
+    /// Windowed rather than tied to the line, since a second voice rarely lines
+    /// up with it; where two overlap the most recent wins, as in
+    /// [`Timeline::locate`].
     pub fn secondary(&self, index: usize, pos: f64) -> Option<&crate::lrc::Secondary> {
         self.lyrics
             .lines
@@ -104,34 +90,23 @@ impl Timeline {
             .find(|s| pos >= s.start && pos < s.display_end())
     }
 
-    /// The word being sung within line `index`, and how far into it the singing
-    /// has got.
-    ///
-    /// `None` before the first word starts. Inside a gap between words the
-    /// previous word is kept rather than blanking the screen — the gaps are
-    /// real (word-timed sources record them) and flashing through them would be
-    /// worse than holding.
+    /// `None` before the first word. In a gap between words the previous word
+    /// is held: flashing through real gaps would be worse than holding.
     pub fn active_word(&self, index: usize, pos: f64) -> Option<ActiveWord> {
         let line = self.lyrics.lines.get(index)?;
         active_word_in(&line.text, &line.words, pos)
     }
 
-    /// [`Timeline::active_word`] for the second voice singing over line `index`:
-    /// a duet partner, or a background vocal with word timings of its own.
-    ///
-    /// `None` for a voice without them, which is drawn whole.
+    /// [`Timeline::active_word`] for the second voice; `None` for a voice
+    /// without word timings, which is drawn whole.
     pub fn second_active_word(&self, index: usize, pos: f64) -> Option<ActiveWord> {
         let s = self.secondary(index, pos)?;
         active_word_in(&s.text, &s.words, pos)
     }
 
-    /// [`Timeline::highlight_chars`] for the duet partner singing over line
-    /// `index`. Only real word timings move it: the partner's window starts
-    /// where it was cut off, not where it began, so there is nothing honest to
-    /// interpolate across.
-    ///
-    /// Always 0 for a background vocal. It steps through its words with the
-    /// line, but it is texture: drawn faint, and never swept.
+    /// Only real word timings move it: the partner's window starts where it was
+    /// cut off, so there is nothing honest to interpolate. Always 0 for a
+    /// backing vocal.
     pub fn second_highlight_chars(&self, index: usize, pos: f64) -> usize {
         let Some(s) = self.secondary(index, pos).filter(|s| !s.background) else {
             return 0;
@@ -139,11 +114,8 @@ impl Timeline {
         sweep_words(&s.words, s.text.chars().count(), pos).unwrap_or(0)
     }
 
-    /// How far the highlight has travelled across line `index`, in characters.
-    ///
-    /// With real word tags the sweep follows them. Without, it moves linearly
-    /// across the line between its two real timestamps, weighted by character
-    /// count — an estimate, and labelled as one by [`Lyrics::has_word_timings`].
+    /// Follows word tags when there are any; otherwise an estimate, linear
+    /// across the line by character count.
     pub fn highlight_chars(&self, index: usize, pos: f64) -> usize {
         let Some(line) = self.lyrics.lines.get(index) else {
             return 0;

@@ -1,10 +1,6 @@
-//! Configuration: defaults < config file < command-line flags.
-//!
-//! The failure mode this guards against is an option that is parsed, echoed
-//! back to the user, and then never read by the code it is supposed to control.
-//! The countermeasure is structural: there is exactly one merge function,
-//! [`Config::resolve`], every field flows through it, and `tests/config_layering.rs`
-//! asserts per field that a flag beats the file and the file beats the default.
+//! Defaults < config file < flags, all merged in [`Config::resolve`] alone, so
+//! `tests/config_layering.rs` can catch an option that is parsed but never
+//! read.
 
 use std::path::{Path, PathBuf};
 
@@ -15,14 +11,8 @@ use crate::cli::Cli;
 use crate::lyrics::Provider;
 use crate::render::Case;
 
-/// Where the accent colour comes from.
-///
-/// The default is deliberately not a colour at all. `Theme` is built from
-/// terminal palette entries rather than fixed RGB precisely so the display
-/// follows whatever scheme the terminal is set to, and a list of hardcoded
-/// themes would throw that away. What this adds instead is a *source* for one
-/// accent — the colour a lyric line is drawn in — leaving the rest of the
-/// palette alone.
+/// A source for the one accent colour, rather than hardcoded themes, so the
+/// rest of the palette keeps following the terminal's scheme.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(try_from = "String")]
 pub enum ColorSource {
@@ -46,13 +36,8 @@ impl ColorSource {
         }
     }
 
-    /// The accent to paint the lyric text in, or `None` to leave the terminal
-    /// palette alone.
-    ///
-    /// A palette that cannot be read falls back to `None` rather than failing:
-    /// a malformed *spec* is the user's typo and is rejected at parse time, but
-    /// a missing `colors.json` just means pywal has not run yet, and refusing to
-    /// start over it would be a poor trade.
+    /// An unreadable palette falls back to `None`: a missing `colors.json` just
+    /// means pywal has not run yet.
     pub fn accent(&self) -> Option<[u8; 3]> {
         match self {
             ColorSource::Terminal => None,
@@ -79,11 +64,7 @@ pub fn parse_hex(raw: &str) -> std::result::Result<[u8; 3], String> {
     Ok([byte(0), byte(2), byte(4)])
 }
 
-/// Pull the accent out of a pywal-shaped palette.
-///
-/// `color4` is pywal's own accent slot — the one its templates use for
-/// highlights — so taking it is what makes `--color-source pywal` match the rest
-/// of a themed desktop rather than merely being tinted by it.
+/// `color4` is pywal's accent slot, the one its templates use for highlights.
 pub fn accent_from_palette(text: &str) -> Option<[u8; 3]> {
     let value: serde_json::Value = serde_json::from_str(text).ok()?;
     let hex = value.get("colors")?.get("color4")?.as_str()?;
@@ -142,9 +123,9 @@ impl TryFrom<String> for ColorSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Sweep {
-    /// Highlight only when the source carries real per-word timestamps and
-    /// the whole line is on screen. Anything else would be highlighting a
-    /// guess, and with one word at a time there is nothing left to point at.
+    /// Only with real per-word timestamps and the whole line on screen:
+    /// anything else highlights a guess, or a lone word with nothing left to
+    /// point at.
     Auto,
     /// Always highlight, interpolating across the phrase when the source is
     /// line-level.
@@ -154,10 +135,8 @@ pub enum Sweep {
 }
 
 impl Sweep {
-    /// Whether to highlight, given what the loaded lyrics actually carry and
-    /// how much of the line is on screen. `Auto` stays out of the way when the
-    /// display is already down to one word: the sweep exists to say which word
-    /// of the line is being sung, and a lone word says that by itself.
+    /// `Auto` stays out of the way at one word on screen: a lone word already
+    /// says which word is being sung.
     pub fn applies(self, has_word_timings: bool, word_by_word: bool) -> bool {
         match self {
             Sweep::Auto => has_word_timings && !word_by_word,
@@ -193,9 +172,7 @@ pub struct Config {
     /// Upper or lower. Applied before layout, one character for one, so the
     /// sweep's offsets still line up.
     pub case: Case,
-    /// Where a track that has never been nudged starts. A track the user has
-    /// corrected with `,` / `.` keeps its own offset instead; see
-    /// [`crate::offsets`].
+    /// Where a track that has never been nudged starts; see [`crate::offsets`].
     pub offset_ms: i64,
     pub lrc_dir: Option<PathBuf>,
     pub network: bool,
@@ -208,13 +185,11 @@ pub struct Config {
     /// Show one word at a time when the lyrics carry real word timings.
     /// Ignored for line-level sources, which have nothing to split on.
     pub word_by_word: bool,
-    /// Stack a second voice above the line when two are singing at once: a
-    /// background vocal, or the other half of a duet. Off shows one line at a
-    /// time, whichever came in most recently.
+    /// Stack a second voice above the line when two sing at once; off shows the
+    /// one that came in most recently.
     pub overlapping_voices: bool,
-    /// Spectrum bars from `cava` under the lyrics, standing on the status line
-    /// and reaching halfway up to the text. Off unless asked for; nothing is
-    /// drawn when cava is not installed.
+    /// Spectrum bars from `cava` under the lyrics; nothing is drawn when cava
+    /// is not installed.
     pub visualizer: bool,
     /// Redraw interval. Only the sweep highlight moves between player events.
     pub tick_ms: u64,
@@ -354,9 +329,8 @@ pub fn cache_dir() -> Option<PathBuf> {
     crate::lyrics::cache::default_dir()
 }
 
-/// `$XDG_DATA_HOME/terminal-lyrics/offsets.json`, where the per-track sync
-/// nudges are kept. Data rather than cache: they are the user's own
-/// corrections, and a cache is by definition safe to delete.
+/// Data rather than cache: the nudges are the user's own corrections, and a
+/// cache is safe to delete.
 pub fn offsets_path() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "terminal-lyrics")
         .map(|d| d.data_dir().join("offsets.json"))

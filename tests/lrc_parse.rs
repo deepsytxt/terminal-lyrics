@@ -197,18 +197,16 @@ fn a_background_marker_is_a_second_voice_not_body_text() {
 
 #[test]
 fn an_unknown_bracket_group_is_still_body_text() {
-    // The marker slot sits where a bracket group that is not a clock already
-    // stopped the timestamp loop. It must not start swallowing the annotations
-    // people really do write at the head of a line.
+    // The marker slot must not swallow annotations people write at the head of
+    // a line.
     let l = lrc::parse("[00:10.000][verse 1]words\n");
     assert_eq!(l.lines[0].text, "[verse 1]words");
 }
 
 #[test]
 fn word_ranges_are_measured_after_the_markers() {
-    // The markers are consumed before the body is read, so a word's char range
-    // indexes the text and nothing else. Getting this wrong shifts every
-    // highlight by the width of the markers.
+    // Markers are consumed before the body, so a word's char range indexes the
+    // text alone; otherwise every highlight shifts by the markers' width.
     let plain = lrc::parse("[00:10.000]<00:10.000>Hello <00:11.000>world\n");
     let marked = lrc::parse("[00:10.000][end:00:14.000]<00:10.000>Hello <00:11.000>world\n");
     assert_eq!(plain.lines[0].text, marked.lines[0].text);
@@ -229,9 +227,8 @@ fn word_ranges_are_measured_after_the_markers() {
 
 #[test]
 fn an_overlap_too_short_to_be_a_duet_is_still_sequential() {
-    // A third of a second is one line's tail running into the next one's head,
-    // which is what most overlap in the wild is. It must read exactly as it did
-    // before second voices existed.
+    // A third of a second is a tail running into the next head, most overlap in
+    // the wild; it must read exactly as it did before second voices existed.
     let l =
         lrc::parse("[00:10.000][end:00:14.300]first line\n[00:14.000][end:00:18.000]second line\n");
     assert!(l.lines[1].secondary.is_empty());
@@ -245,9 +242,8 @@ fn a_long_overlap_puts_the_first_voice_above_the_second() {
     let l = lrc::parse(
         "[00:10.000][end:00:14.000]first voice\n[00:11.500][end:00:16.000]second voice\n",
     );
-    // The earlier line keeps its own window right up to the moment the second
-    // one arrives: it is only a second voice once there is something to be
-    // second to.
+    // The earlier line keeps its own window until the second arrives: it is
+    // only a second voice once there is something to be second to.
     assert!(l.lines[0].secondary.is_empty());
     assert!((l.lines[0].end - 11.5).abs() < 0.001);
 
@@ -309,9 +305,8 @@ fn a_line_whose_only_word_tags_are_background_is_not_word_timed() {
 
 #[test]
 fn a_second_voice_survives_being_reparsed_from_its_own_text() {
-    // Everything reaches the screen by way of the cache, which stores the LRC
-    // text and parses it again. Anything not written down here is lost on the
-    // second play and nowhere else.
+    // The cache stores the LRC text and parses it again, so anything not
+    // written here is lost on the second play.
     let text = "[00:10.000][end:00:14.000]I will always love you\n\
                 [00:11.000][bg:00:10.000][end:00:13.000](ooh ooh)\n";
     assert_eq!(lrc::parse(text), lrc::parse(&format!("{text}{}", "")));
@@ -321,9 +316,8 @@ fn a_second_voice_survives_being_reparsed_from_its_own_text() {
 
 #[test]
 fn a_brief_overlap_between_two_long_lines_is_still_slop() {
-    // Over a second, so the duration rule alone would let it through — but it
-    // is a small part of either phrase, which is what a tail running long looks
-    // like on lines this length.
+    // Over a second, so the duration rule alone would pass it, but it is a
+    // small part of either phrase: a tail running long.
     let l = lrc::parse(
         "[00:10.000][end:00:21.200]a long first line\n\
          [00:20.000][end:00:31.000]a long second line\n",
@@ -333,9 +327,8 @@ fn a_brief_overlap_between_two_long_lines_is_still_slop() {
 
 #[test]
 fn only_a_pair_wrapping_the_whole_background_comes_off() {
-    // A stray bracket is either part of the words or a phrase carried over from
-    // the line before, and a pair that closes midway is two asides, not a
-    // wrapper. Neither is ours to tidy.
+    // A stray bracket, or a pair that closes midway, is part of the words or
+    // two asides, not a wrapper; neither is ours to tidy.
     let l = lrc::parse(
         "[00:10.000][end:00:20.000]the line\n\
          [00:11.000][bg:00:10.000][end:00:12.000](ooh\n\

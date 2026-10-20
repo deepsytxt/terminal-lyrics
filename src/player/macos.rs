@@ -1,25 +1,7 @@
-//! macOS, via AppleScript. One `osascript` per poll.
-//!
-//! There is no MPRIS here and no general now-playing API left to use: the
-//! MediaRemote private framework that every other tool reached for
-//! (`MRMediaRemoteGetNowPlayingInfo`) was restricted to entitled applications in
-//! macOS 15.4, so it is dead on anything current. What remains is each app's own
-//! scripting dictionary, which is why this backend knows the apps by name rather
-//! than discovering them.
-//!
-//! That trade costs the lyrics nothing: every provider matches on artist and
-//! title, so the word-by-word path works here as well as it does on Linux.
-//! Spotify's `spotify:track:<id>` is still kept, as the key for saved nudges.
-//!
-//! Two decisions in the script below are load-bearing:
-//!
-//! * Every app is guarded by `is running`. A bare `tell application "Spotify"`
-//!   *launches* Spotify, and a lyrics visualiser that opens your music player
-//!   because you ran it is not acceptable behaviour.
-//! * Every number crosses the boundary as an integer of milliseconds.
-//!   AppleScript's `as text` for reals uses the decimal separator of the user's
-//!   locale, so `6.55` arrives as `6,55` on a German Mac and parses as garbage.
-//!   Integers have no separator.
+//! AppleScript, since MediaRemote was restricted to entitled apps in macOS
+//! 15.4. Every app is guarded by `is running`: a bare `tell` would launch it.
+//! Numbers cross as integer milliseconds: `as text` on a real uses the locale's
+//! decimal separator, so `6.55` arrives as `6,55` on a German Mac.
 
 use std::time::Duration;
 
@@ -40,7 +22,6 @@ const MISSES_BEFORE_GONE: u32 = 3;
 /// every new user hits, so it is the one error worth naming.
 const ERR_NOT_AUTHORISED: i32 = -1743;
 
-/// A scriptable player we know how to talk to.
 struct App {
     /// The name the user types after `--player`, matching the Linux short names.
     name: &'static str,
@@ -48,14 +29,9 @@ struct App {
     /// AppleScript for the track's stable id, which differs per app. It runs
     /// where `lyTrack` is bound to `current track`.
     id_expr: &'static str,
-    /// What to multiply `duration` by to get milliseconds.
-    ///
-    /// Music reports seconds, as its dictionary says. Spotify's dictionary also
-    /// says "The length of the track in seconds" and then returns `233000` for
-    /// a track that is 233 seconds long — the same brand of lie as the metadata
-    /// types in `mpris.rs`, and worth pinning down here, because getting it
-    /// wrong does not fail: it just puts every LRCLIB candidate outside the
-    /// five-second window and the track quietly gets no lyrics.
+    /// To milliseconds. Spotify's dictionary says seconds but returns `233000`
+    /// for 233 seconds, and getting it wrong silently puts every candidate
+    /// outside the window.
     duration_scale: &'static str,
 }
 
@@ -94,18 +70,9 @@ pub struct Probe {
     pub result: Result<Snapshot, ProbeError>,
 }
 
-/// The script sent to `osascript`.
-///
-/// Every variable carries an `ly` prefix because AppleScript resolves bare
-/// identifiers against the target application's scripting dictionary first: a
-/// variable called `st` is a syntax error inside `tell application "Spotify"`,
-/// since Spotify's terminology already claims it.
-///
-/// Each app is wrapped in its own `try` so that a machine without Spotify
-/// installed reports Spotify as unavailable rather than failing the whole probe
-/// and hiding Music behind it. Arithmetic happens outside the `tell` block:
-/// commands inside one are addressed to the application first, and `round`
-/// belongs to Standard Additions, not to Spotify.
+/// Variables carry an `ly` prefix: bare names resolve against the app's
+/// dictionary first. Each app has its own `try`, and arithmetic stays outside
+/// `tell`, since `round` belongs to Standard Additions.
 fn probe_script() -> String {
     let mut s = String::from("set AppleScript's text item delimiters to tab\nset lyOut to {}\n");
     for app in APPS {
@@ -163,12 +130,8 @@ fn parse_ms(field: &str) -> Option<f64> {
         .map(|ms| ms as f64 / 1000.0)
 }
 
-/// Turn the probe's output into one [`Probe`] per line.
-///
-/// Deliberately forgiving: a track title is arbitrary user text, so a line that
-/// does not look like a row is skipped rather than trusted. The free-text fields
-/// come last precisely so that a stray tab inside a title cannot shift the
-/// position or duration out from under the parser.
+/// A line that does not look like a row is skipped. The free-text fields come
+/// last so a tab in a title cannot shift the numbers.
 pub fn parse_probe(stdout: &str) -> Vec<Probe> {
     let mut out = Vec::new();
     for line in stdout.lines() {
@@ -236,19 +199,8 @@ fn not_authorised(app: &str) -> anyhow::Error {
     )
 }
 
-/// Build an `osascript` invocation for `script`.
-///
-/// The `process_group` call is the whole reason this helper exists. A child
-/// inherits its parent's process group, which — since the TUI is the terminal's
-/// foreground job — makes every probe briefly the foreground job too. Terminal
-/// and iTerm both title their window after that job, so at one subprocess per
-/// poll the title flickers between "lyrics" and "osascript" for as long as the
-/// program runs. Its own group keeps it out of that lookup entirely.
-///
-/// Nothing is lost by detaching: `output()` gives the child a null stdin and
-/// pipes for the rest, so it neither reads nor writes the terminal, and a probe
-/// short enough to finish inside [`PROBE_TIMEOUT`] does not need the terminal's
-/// Ctrl-C — which raw mode has switched off anyway.
+/// Its own process group: otherwise each probe briefly becomes the foreground
+/// job and Terminal and iTerm flicker the window title to "osascript".
 fn osascript(script: &str) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("osascript");
     cmd.arg("-e").arg(script).process_group(0);
@@ -284,11 +236,8 @@ impl Session {
         Ok(Self)
     }
 
-    /// Ask every app we know about what it is doing.
-    ///
-    /// An app that is not installed simply does not appear. A denial is
-    /// different: it is reported only when it leaves nothing usable behind, so
-    /// that refusing Spotify does not stop Music from working.
+    /// A denial is reported only when it leaves nothing usable, so refusing
+    /// Spotify does not stop Music from working.
     pub async fn survey(&self) -> Result<Vec<PlayerState>> {
         let probes = run_probe().await?;
         let mut out = Vec::new();
@@ -377,13 +326,9 @@ impl PlayerHandle {
         Err(anyhow!("play/pause failed: {}", stderr.trim()))
     }
 
-    /// Spawn the event pump.
-    ///
-    /// Polling only — a scripting dictionary has nothing to subscribe to. That
-    /// is less of a loss than it sounds: the Linux backend already polls for
-    /// exactly this reason, because Spotify never emits `Seeked` there either,
-    /// so [`crate::sync::SyncEngine`]'s `Tick` arm was written to re-anchor on
-    /// divergence and picks up a scrub here the same way.
+    /// Polling only: a scripting dictionary has nothing to subscribe to, and
+    /// the `Tick` arm picks up a scrub the same way it does for Spotify on
+    /// Linux.
     pub fn spawn(self, poll_interval: Duration) -> (EventRx, tokio::task::JoinHandle<()>) {
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = tokio::spawn(async move {
@@ -422,11 +367,8 @@ impl PlayerHandle {
                         return;
                     }
                 },
-                // The probe itself failed — a timeout, a busy machine. That is
-                // not the same as the player being gone, and tearing the
-                // visualiser down over one unlucky subprocess would be a poor
-                // trade. Spawning a process is simply less reliable than reading
-                // a bus, so this backend has to tolerate the occasional miss.
+                // The probe itself failed (a timeout, a busy machine): that is
+                // not the player being gone, so a few misses are tolerated.
                 Err(_) => {
                     misses += 1;
                     if misses >= MISSES_BEFORE_GONE {

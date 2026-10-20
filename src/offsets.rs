@@ -1,24 +1,5 @@
-//! Per-track sync offsets, remembered between runs.
-//!
-//! A badly timed file is badly timed for that one song, so nudging with `,` and
-//! `.` is a property of the track, not of the session. Carrying the nudge into
-//! the next song was the old behaviour and it was always wrong: the next song
-//! is timed fine, and the correction that rescued the last one now breaks it.
-//!
-//! So the offset is stored against the track's cache key and reapplied when the
-//! track comes back. A song that has never been tuned has no entry and starts
-//! at `offset_ms` from the config — which is what that key now means: the
-//! starting point for a track nobody has corrected yet.
-//!
-//! Only tuned tracks are stored. Resetting one with `0` deletes its entry
-//! rather than writing a zero, so the file stays a list of corrections rather
-//! than growing an entry per song ever played.
-//!
-//! Disk is the truth on every read and every write: the file is a few hundred
-//! bytes and is touched only on a track change or a keypress, so re-reading it
-//! costs nothing and means two `lyrics` running at once cannot silently drop
-//! each other's corrections. It is written pretty-printed and keyed in sorted
-//! order because it is small enough to be worth editing by hand.
+//! Per-track sync offsets, keyed like the lyrics cache. Only tuned tracks are
+//! stored, and the file is re-read on every write so two running copies agree.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -46,8 +27,7 @@ struct Saved {
     tracks: BTreeMap<String, Entry>,
 }
 
-/// The saved corrections. A store with nowhere to write still works for the
-/// length of the session; it just forgets on exit.
+/// A store with nowhere to write forgets on exit.
 #[derive(Debug)]
 pub struct Offsets {
     path: Option<PathBuf>,
@@ -76,7 +56,6 @@ impl Offsets {
         }
     }
 
-    /// Nowhere to write to; nudges last only for this session.
     pub fn in_memory() -> Self {
         Self::new(None)
     }
@@ -90,14 +69,12 @@ impl Offsets {
         self.read().tracks.get(key).map(|e| e.offset_ms)
     }
 
-    /// What the clock should be set to for this track: its own saved offset,
-    /// or the configured starting point when it has none.
     pub fn offset_for(&self, key: &str, default_ms: i64) -> i64 {
         self.get(key).unwrap_or(default_ms)
     }
 
-    /// Remember a correction. An empty key means the player told us nothing
-    /// stable enough to key on, so there is nothing to remember it against.
+    /// An empty key means the player gave nothing stable to remember it
+    /// against.
     pub fn set(&mut self, key: &str, label: &str, offset_ms: i64) {
         if key.is_empty() {
             return;
@@ -113,8 +90,8 @@ impl Offsets {
         self.commit(tracks);
     }
 
-    /// Forget one track's correction, so it starts from the config default
-    /// again. Absence is how "not tuned" is spelled.
+    /// Absence is how "not tuned" is spelled, so the track starts from the
+    /// default.
     pub fn clear(&mut self, key: &str) {
         let mut tracks = self.read().tracks;
         if tracks.remove(key).is_some() {
@@ -131,9 +108,8 @@ impl Offsets {
         self.len() == 0
     }
 
-    /// Whatever is on disk right now. Any unreadable or unrecognised file
-    /// reads as empty: the corrections are a convenience, and refusing to
-    /// start over a corrupt one would be the worse failure.
+    /// An unreadable file reads as empty: refusing to start over a corrupt one
+    /// would be the worse failure.
     fn read(&self) -> Saved {
         let Some(path) = &self.path else {
             return Saved {
@@ -163,9 +139,8 @@ impl Offsets {
         let Ok(json) = serde_json::to_string_pretty(&file) else {
             return;
         };
-        // Write-then-rename, as the cache does: a process killed mid-write
-        // must not leave a truncated file that then reads as no corrections
-        // at all.
+        // Write-then-rename: a process killed mid-write must not leave a
+        // truncated file that reads as no corrections.
         let tmp = path.with_extension("tmp");
         if std::fs::write(&tmp, json).is_ok() && std::fs::rename(&tmp, &path).is_err() {
             let _ = std::fs::remove_file(&tmp);

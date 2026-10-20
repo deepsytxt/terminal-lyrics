@@ -72,10 +72,8 @@ fn engine() -> Result<Arc<Engine>> {
     Ok(Arc::new(Engine::new(Cache::new(config::cache_dir()))?))
 }
 
-/// Headless lookup, so the fetch path can be exercised without a player.
-///
-/// This runs the same lookup the live path does, on a `Track` built from the
-/// flags, so a bug found here is the bug the visualiser has too.
+/// Headless lookup through the same path the live one uses, so the fetch can be
+/// tried without a player.
 async fn cmd_fetch(
     cfg: &Config,
     artist: &str,
@@ -127,8 +125,6 @@ async fn cmd_fetch(
 async fn cmd_status(cfg: &Config) -> Result<()> {
     let session = Session::open().await?;
 
-    // Show what each player is doing, so "it followed the wrong one" is
-    // answerable at a glance.
     let survey = session.survey().await?;
     if survey.is_empty() {
         println!("players   (none)");
@@ -210,8 +206,8 @@ async fn cmd_status(cfg: &Config) -> Result<()> {
         "colour    {}{}",
         cfg.color_source.label(),
         // A source that resolves to nothing has fallen back to the terminal
-        // palette — pywal never ran, or the path is wrong. Worth saying, since
-        // the alternative is wondering why the colour did not change.
+        // palette: say so, or the user is left wondering why the colour did not
+        // change.
         match (&cfg.color_source, cfg.color_source.accent()) {
             (ColorSource::Terminal, _) => String::new(),
             (_, Some([r, g, b])) => format!("  (accent #{r:02x}{g:02x}{b:02x})"),
@@ -246,8 +242,6 @@ async fn cmd_status(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-/// One place that describes a set of lyrics, so every path through `status`
-/// reports the same fields.
 fn report_lyrics(cfg: &Config, found: &terminal_lyrics::lyrics::Found) {
     let word_timed = found.lyrics.has_word_timings();
     println!(

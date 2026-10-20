@@ -1,9 +1,5 @@
-//! Parsing the AppleScript probe.
-//!
-//! The backend itself cannot be tested — it shells out to `osascript`, which
-//! would prompt for Automation access locally and fail outright in CI — so the
-//! edge is kept as thin as possible and everything with a decision in it lives
-//! in `parse_probe`. These are the decisions.
+//! The AppleScript probe's parser. The backend shells out to `osascript`, which
+//! prompts for Automation access, so every decision lives in `parse_probe`.
 #![cfg(target_os = "macos")]
 
 use terminal_lyrics::player::macos::{ProbeError, parse_probe};
@@ -34,9 +30,8 @@ fn a_spotify_row_becomes_a_track_with_seconds_not_milliseconds() {
     assert_eq!(track.title, "You Know How We Do It");
     assert_eq!(track.artist, "Ice Cube");
     assert_eq!(track.album.as_deref(), Some("Lethal Injection"));
-    // 233 seconds, not 233000. A wrong unit here is not a visible failure: it
-    // just puts every LRCLIB candidate outside the five-second window and the
-    // track silently gets no lyrics.
+    // 233 seconds, not 233000: a wrong unit puts every candidate outside the
+    // duration window and the track silently gets no lyrics.
     assert!((track.length.unwrap() - 233.0).abs() < 1e-9);
 }
 

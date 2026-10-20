@@ -1,11 +1,5 @@
-//! The sync nudge belongs to the song, not to the session.
-//!
-//! Before this, `,` and `.` moved one global offset: the correction that
-//! rescued a badly timed file followed you into the next song, which was timed
-//! fine, and broke that one instead — and it was gone by the next run anyway,
-//! so the same song had to be re-tuned by ear every time it came up. Here the
-//! offset is keyed by the track and written to disk, so an untuned song starts
-//! from the config default and a tuned one comes back the way you left it.
+//! The sync nudge is keyed by track and saved, so a fix for one badly timed
+//! song neither follows you into the next nor is lost on exit.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;

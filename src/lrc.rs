@@ -1,32 +1,15 @@
-//! One LRC parser.
-//!
-//! Two parsers with subtly different regexes is an easy mistake to make and a
-//! miserable one to debug: lines that write out fine become invisible on
-//! playback. There is one parser here and it handles the whole dialect:
-//!
-//! * `[mm:ss]`, `[mm:ss.xx]`, `[mm:ss.xxx]` — fractional seconds optional
-//! * multiple timestamps on one line: `[00:10.00][01:20.00]same words`
-//! * `[offset:+250]` / `[offset:-250]`, applied to every timestamp
-//! * ID tags (`ti`, `ar`, `al`, `by`, `length`) kept as metadata, not lyrics
-//! * enhanced (A2) word tags: `[00:12.00]<00:12.00>Hello <00:12.50>world`
-//! * `#` comments and blank lines
-//!
-//! Timestamped lines with no text are kept: in a well-made LRC they mark
-//! instrumental gaps, and dropping them leaves the previous line frozen on
-//! screen through the whole break.
+//! The one LRC parser, since two that differ make lines vanish on playback.
+//! Timed lines with no text are kept: they end the previous line for a break.
 
 use std::ops::Range;
 
-/// A timed span from an enhanced-LRC source: one word, or one syllable of a
-/// word when the source times long words in pieces. [`Line::continues_word`]
-/// tells the two apart.
+/// One word, or one syllable of a word when the source times long words in
+/// pieces; [`Line::continues_word`] tells them apart.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Word {
     pub start: f64,
-    /// When the word stops being highlighted. A trailing `<mm:ss.xx>` tag sets
-    /// this explicitly; otherwise finalisation fills in the next word's start.
-    /// The difference matters when a source records a real gap between words —
-    /// without it the highlight smears across the pause.
+    /// From a trailing `<mm:ss.xx>` tag, else the next word's start. A real gap
+    /// between words needs it, or the highlight smears across the pause.
     pub end: f64,
     /// Char range of this word inside [`Line::text`], for highlighting.
     pub range: Range<usize>,
@@ -42,22 +25,17 @@ pub struct Secondary {
     /// When the source stops it.
     pub end: f64,
     pub text: String,
-    /// The voice's own word timings, measured in its `text`, so it can go word
-    /// by word alongside the line instead of forcing both back to whole
-    /// phrases. A background vocal keeps its words too, and steps through them
-    /// with the line; it is still never swept — see
-    /// [`crate::timeline::Timeline::second_highlight_chars`].
+    /// Measured in its own `text`, so it can go word by word alongside the
+    /// line. A background vocal steps through its words too, but is never
+    /// swept.
     pub words: Vec<Word>,
     /// Background vocals are dimmed and drawn a size smaller. The other half of
     /// a duet is neither: it is a co-equal voice.
     pub background: bool,
 }
 
-/// How long a second voice stays up once it has appeared.
-///
-/// Apple times a background phrase to the syllable, so "(ooh)" can be a fifth
-/// of a second long. Drawn and pulled that fast it reads as a flicker rather
-/// than as a voice. Display-only, derived on read — never written to disk.
+/// "(ooh)" can be a fifth of a second long, which reads as flicker.
+/// Display-only: never written to disk.
 pub const MIN_SECONDARY_HOLD: f64 = 1.0;
 
 impl Secondary {
@@ -91,13 +69,8 @@ impl Line {
         self.text.chars().count()
     }
 
-    /// Whether word `i` continues the word before it instead of starting a new
-    /// one — a syllable rather than a word.
-    ///
-    /// Word-timed sources time long words in pieces (`be` then `lieve`), and the
-    /// only thing that separates two real words is the whitespace between them.
-    /// A timed span butted straight up against the one before it is therefore
-    /// part of the same word, and must not be shown as a word of its own.
+    /// Only whitespace separates two real words, so a span butted against the
+    /// one before it is a syllable of the same word (`be`, `lieve`).
     pub fn continues_word(&self, i: usize) -> bool {
         continues_word(&self.text, &self.words, i)
     }
@@ -188,9 +161,8 @@ fn parse_timestamp(s: &[char], i: usize) -> Option<(f64, usize)> {
     Some((secs, close + 1))
 }
 
-/// `mm:ss`, `mm:ss.xx`, `hh:mm:ss.xx` → seconds. Rejects anything else, which is
-/// what keeps `[ti:Song]` from being read as a time. Shared with the TTML
-/// converter, which uses the same clock syntax.
+/// `mm:ss`, `mm:ss.xx`, `hh:mm:ss.xx` → seconds. Rejecting anything else is
+/// what keeps `[ti:Song]` from being read as a time.
 pub fn parse_clock(body: &str) -> Option<f64> {
     let mut parts = body.split(':');
     let a = parts.next()?;
@@ -288,10 +260,7 @@ fn parse_body(rest: &[char]) -> Body {
     Body { text, words }
 }
 
-/// Record a word spanning `from..to` (char indices), skipping the whitespace
-/// that separates it from the next one so the highlight lands on the word.
-///
-/// A tag with no visible text behind it is an *end* tag: it closes the previous
+/// A tag with no visible text behind it is an end tag: it closes the previous
 /// word rather than opening a new one.
 fn push_word(words: &mut Vec<Word>, text: &str, start: f64, from: usize, to: usize) {
     let chars: Vec<char> = text.chars().collect();
@@ -314,14 +283,9 @@ fn push_word(words: &mut Vec<Word>, text: &str, start: f64, from: usize, to: usi
     });
 }
 
-/// The marker groups a line may carry between its timestamps and its text.
-///
-/// `[bg:mm:ss.SSS]` marks the line as a second voice and names the line it
-/// sings over; `[end:mm:ss.SSS]` records when the source says the singing
-/// actually stops. Both sit in the one place the format leaves free: a bracket
-/// group that is not a clock stops [`parse_timestamp`]'s loop, so the slot was
-/// already unreachable, and putting them ahead of the body means every word's
-/// char range is still measured from the first character of the text.
+/// `[bg:start]` names the line a second voice sings over, `[end:]` when the
+/// singing stops. They go ahead of the body, so word ranges still count from
+/// the text.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 struct Markers {
     background: bool,
@@ -331,9 +295,8 @@ struct Markers {
     end: Option<f64>,
 }
 
-/// Read the marker groups at `i`, stopping at the first bracket group that is
-/// not one. Anything else is left exactly where it was and becomes body text,
-/// so `[00:10.00][verse 1]words` still reads as the words `[verse 1]words`.
+/// Stops at the first bracket group that is not a marker, so `[00:10.00][verse
+/// 1]words` still reads as `[verse 1]words`.
 fn parse_markers(s: &[char], mut i: usize) -> (Markers, usize) {
     let mut out = Markers::default();
     while s.get(i) == Some(&'[') {
@@ -363,12 +326,9 @@ fn parse_markers(s: &[char], mut i: usize) -> (Markers, usize) {
     (out, i)
 }
 
-/// One parsed line before overlap and gaps have been worked out.
-///
-/// Private on purpose: `real_end` and the background marker say what the source
-/// wrote, and mean nothing once [`finalise`] has turned them into
-/// [`Line::secondary`]. In particular `real_end` is not [`Line::end`] — one is
-/// when the singing stops, the other is when the line leaves the screen.
+/// `real_end` is when the singing stops, not [`Line::end`], when the line
+/// leaves the screen; it and the background marker mean nothing after
+/// [`finalise`].
 struct Draft {
     start: f64,
     real_end: Option<f64>,
@@ -387,21 +347,9 @@ impl Draft {
     }
 }
 
-/// How long two lines must overlap, and by what share of the shorter of them,
-/// before they count as two voices singing at once rather than as one line's
-/// tail bleeding into the next line's head.
-///
-/// Measured over 39 files from the AMLL database — 1863 `<p>` elements, 95
-/// overlapping consecutive pairs. The overlaps run: min 0.00 s, p25 0.06 s,
-/// median 0.25 s, p75 0.93 s, max 4.42 s. 61% are under half a second and 76%
-/// under a second, which is timing slop, not a duet; stacking those would put a
-/// second line on screen roughly two and a half times a song for a quarter of a
-/// second each, and read as flicker rather than as a second singer. At these
-/// values 20 of the 95 qualify — about one duet moment every two songs.
-///
-/// `ttm:agent` deliberately plays no part in the test: 42 of those 95 pairs
-/// share an agent, so who is singing cannot tell the two cases apart. Only the
-/// times can.
+/// Anything less is timing slop: across 95 overlapping pairs in the AMLL
+/// database the median overlap is 0.25 s. `ttm:agent` cannot tell the cases
+/// apart, since 42 of the 95 share one.
 const MIN_DUET_OVERLAP: f64 = 1.0;
 const MIN_DUET_OVERLAP_FRACTION: f64 = 0.5;
 
@@ -467,17 +415,11 @@ pub fn parse(input: &str) -> Lyrics {
     finalise(lines, meta)
 }
 
-/// Sort, work out who is singing over whom, fill in every `end`, and apply
-/// `[offset:]`, so lookup never has to reason about neighbours.
-///
-/// All of the structural work happens in the file's own coordinates and the
-/// offset is applied once at the very end. That is simpler than shifting as we
-/// go, and it is why every `end` here — line, word and second voice alike —
-/// moves with the shift instead of only the starts.
+/// The offset is applied once at the end, which is why every `end` moves with
+/// it rather than only the starts.
 fn finalise(drafts: Vec<Draft>, meta: Meta) -> Lyrics {
-    // Multi-timestamp lines arrive out of order by construction. The sort is
-    // stable, so two lines that begin together keep the order they were written
-    // in and the later one wins the main slot.
+    // Stable, so two lines that begin together keep their written order and the
+    // later one wins the main slot.
     let mut drafts = drafts;
     drafts.sort_by(|a, b| a.start.total_cmp(&b.start));
 
@@ -551,13 +493,8 @@ fn close_words(words: &mut [Word], end: f64) {
     }
 }
 
-/// Hang each background vocal on the line it sings over.
-///
-/// The `[bg:]` marker names that line by its start, which is exact where the
-/// source gave us one. Without it, the last line already running is the only
-/// sensible guess. A background with nowhere to go is dropped: it is texture,
-/// and one hung on the wrong line is a visible bug, while a missing one costs
-/// nothing.
+/// By the `[bg:]` start when given, else the last line already running. One
+/// with nowhere to go is dropped: on the wrong line it would be a visible bug.
 fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
     for bg in backgrounds {
         let target = bg
@@ -571,9 +508,8 @@ fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
             continue;
         }
         let text: String = bg.text.chars().skip(kept.start).take(kept.len()).collect();
-        // The words were measured in the text as written, brackets and all;
-        // rebase them onto what is left. A word that was nothing but a bracket
-        // has nothing left to show and goes with it.
+        // The words were measured with the brackets; rebase them, dropping any
+        // that was nothing but a bracket.
         let words = bg
             .words
             .iter()
@@ -596,18 +532,8 @@ fn attach_backgrounds(lines: &mut [Line], backgrounds: Vec<Draft>) {
     }
 }
 
-/// Take the brackets off a background phrase: `"(ooh ooh)"` is `ooh ooh`.
-/// Returns the char range of `text` that is kept, surrounding space trimmed.
-///
-/// Sources write a backing vocal in parentheses because plain text has no other
-/// way to say "this is not the line". We do: it is dimmed, drawn a size smaller,
-/// and reached through `Secondary` at all. Kept, the brackets are a pair of
-/// bars flanking every background phrase on screen — punctuation restating what
-/// the whole shape of it already says.
-///
-/// Only a matched pair wrapping the whole phrase comes off. A stray bracket is
-/// left alone: it is either part of the words or a phrase split across lines,
-/// and neither is ours to tidy.
+/// Only a matched pair wrapping the whole phrase: `"(ooh ooh)"` is `ooh ooh`.
+/// The dimmed, smaller voice already says what the brackets did.
 fn unwrap_brackets(text: &str) -> Range<usize> {
     let chars: Vec<char> = text.chars().collect();
     let trim = |mut r: Range<usize>| {
@@ -637,17 +563,9 @@ fn unwrap_brackets(text: &str) -> Range<usize> {
     }
 }
 
-/// Fold away lines that share a timestamp, keeping the last as the line and the
-/// earlier ones as voices over it.
-///
-/// Such a line has no window of its own: `end` would come out equal to `start`
-/// and [`crate::timeline::Timeline::locate`] could never return it, so it was
-/// invisible. Two singers given the same timestamp is exactly the case this
-/// whole feature is about, so it is folded rather than dropped — unless the
-/// text is the same, which is a duplicated line rather than a second voice and
-/// would only stack a phrase on top of itself.
-///
-/// Returns the surviving drafts, aligned with `lines`.
+/// Such a line would get `end == start` and never be shown. The same text twice
+/// is a duplicate, not a second voice. Returns the drafts kept, aligned with
+/// `lines`.
 fn collapse_equal_starts(lines: &mut Vec<Line>, mains: Vec<Draft>) -> Vec<Draft> {
     let mut kept_lines: Vec<Line> = Vec::with_capacity(lines.len());
     let mut kept_drafts: Vec<Draft> = Vec::with_capacity(mains.len());
@@ -684,11 +602,8 @@ fn collapse_equal_starts(lines: &mut Vec<Line>, mains: Vec<Draft>) -> Vec<Draft>
     kept_drafts
 }
 
-/// Give every line the window it holds the screen for.
-///
-/// Unchanged in spirit: a line runs until the next one starts, so it stays up
-/// through the gap rather than blinking out. A line's real end never shortens
-/// it — that is what makes an overlap a second voice instead of a truncation.
+/// A line runs until the next one starts; its real end never shortens it, which
+/// is what makes an overlap a second voice instead of a truncation.
 fn assign_ends(lines: &mut [Line]) {
     for idx in 0..lines.len() {
         let next_start = lines.get(idx + 1).map(|l| l.start);
@@ -705,17 +620,8 @@ fn assign_ends(lines: &mut [Line]) {
     }
 }
 
-/// Where one line is still being sung as the next comes in, put it above the
-/// new one instead of cutting it off.
-///
-/// The later line takes the reading position and the earlier one moves up: the
-/// alternative leaves the newly-arrived voice hidden behind a phrase that is
-/// already finishing. Nothing is lost by copying the text and its words — the
-/// earlier line keeps its own window and its sweep right up to the moment the
-/// second voice arrives, and carries on word by word above the new one after.
-///
-/// Only the immediately preceding line is considered. A three-way overlap is
-/// vanishingly rare and the screen holds two voices anyway.
+/// The later line takes the reading position and the earlier one moves up. Only
+/// the preceding line is considered: the screen holds two voices anyway.
 fn pair_duets(lines: &mut [Line], mains: &[Draft]) {
     for idx in 1..lines.len() {
         let Some(prev_end) = mains[idx - 1].sung_end() else {

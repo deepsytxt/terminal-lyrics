@@ -1,8 +1,5 @@
-//! KuGou: KRC karaoke lyrics (word-timed), falling back to its LRC.
-//!
-//! Two searches find the track: the song catalogue first, which carries
-//! durations, then the lyrics search. Either result has to name this title and
-//! artist, because both searches pad their answers with other songs.
+//! KuGou: KRC karaoke lyrics, falling back to its LRC. Both of its searches pad
+//! their answers with other songs, so a result must name this title and artist.
 
 use std::io::Read;
 use std::sync::LazyLock;
@@ -304,10 +301,8 @@ fn header_line(text: &str, first: bool) -> bool {
     first && TITLE_SEP.is_match(text)
 }
 
-/// Some uploads carry a Chinese translation as a timed line after every
-/// original line. Only that strict alternation of Han-only lines is dropped:
-/// mixed-language lyrics have CJK lines in a row, a CJK song asked for by a
-/// romanised name starts with one, and Japanese or Korean carry kana or Hangul.
+/// Drops a Chinese translation baked in as alternating Han-only lines. Only
+/// that strict alternation: mixed-language lyrics have CJK lines in a row too.
 fn drop_baked_translations(req: &Request, lines: Vec<Line>) -> Vec<Line> {
     if has_cjk(&format!("{}{}", req.title, req.artist)) {
         return lines;

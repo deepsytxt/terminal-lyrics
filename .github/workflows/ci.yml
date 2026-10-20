@@ -1,12 +1,5 @@
-# Every push and pull request, on every platform that has a player backend.
-#
-# No system packages are installed, because nothing here needs one: `zbus` is
-# pure Rust, so there is no libdbus to find, and `rustls` brings its own TLS
-# rather than looking for a system OpenSSL. It does not follow that the build is
-# C-free — `rustls` pulls `aws-lc-rs`, whose `aws-lc-sys` compiles BoringSSL from
-# source — but every runner already ships a working C compiler, so that builds
-# without help. It is cross-compiling that trips over it, which is why the
-# Windows job below runs on a Windows runner rather than `--target`ing one.
+# No system packages: zbus and rustls need none, and aws-lc-sys builds with the
+# runner's C compiler. Cross-compiling trips over it, hence the Windows runner.
 name: CI
 
 on:
@@ -19,9 +12,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Linux and macOS each compile their own backend and run the tests gated to
-  # them: `tests/macos_probe.rs` is `#![cfg(target_os = "macos")]`, so it has
-  # never run anywhere until this job existed.
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -47,11 +37,8 @@ jobs:
       - name: Test
         run: cargo test
 
-  # Windows cannot be folded into the matrix above: the SMTC backend is the one
-  # platform whose code nobody here can run by hand, so this job is the only
-  # thing standing between `src/player/windows.rs` and silent rot. It runs the
-  # tests rather than a bare check, because `tests/windows_probe.rs` is
-  # `#![cfg(target_os = "windows")]` and this is the only place it executes.
+  # Nobody here can try the SMTC backend by hand, so this is the only place
+  # `tests/windows_probe.rs` runs.
   windows:
     name: test (windows-latest)
     runs-on: windows-latest
@@ -70,9 +57,7 @@ jobs:
       - name: Test
         run: cargo test
 
-  # `install.sh` against the latest published release, on both systems it
-  # covers. It is the one piece of the install that nothing else exercises, and
-  # it breaks quietly: the README keeps pointing at it either way. The release
+  # Nothing else exercises `install.sh`, and it breaks quietly; the release
   # workflow runs the same check against each new tag.
   install-script:
     name: install.sh (${{ matrix.os }})

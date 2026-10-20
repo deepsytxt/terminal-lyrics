@@ -1,10 +1,6 @@
-//! Why a lookup did not produce lyrics.
-//!
-//! The split that matters is "not found" against everything else: a provider
-//! that says it has nothing is cached as a miss, while one that failed is asked
-//! again next time.
+//! A provider that says it has nothing is cached as a miss; one that failed is
+//! asked again next time.
 
-/// One provider's failure, or the whole lookup's.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("lyrics not found")]
@@ -28,7 +24,6 @@ pub enum Error {
     RateLimited,
     #[error("lyrics lookup timed out")]
     Timeout,
-    /// A document or response that does not parse.
     #[error("{0}")]
     Invalid(String),
     #[error(transparent)]

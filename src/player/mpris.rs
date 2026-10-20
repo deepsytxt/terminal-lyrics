@@ -1,16 +1,5 @@
-//! MPRIS over D-Bus, via zbus. No subprocesses.
-//!
-//! Two things about real players that a spec-literal decoder gets wrong, both
-//! confirmed against the Spotify client on this machine:
-//!
-//! ```text
-//! mpris:length   spec says x (i64)   Spotify sends t (u64)
-//! mpris:trackid  spec says o (path)  Spotify sends s (string)
-//! ```
-//!
-//! So every metadata value is read leniently, by trying the plausible variant
-//! types in turn. A strict decoder gets `None` for the track length, which in
-//! turn ruins the LRCLIB duration match.
+//! Spotify sends `mpris:length` as `t` and `mpris:trackid` as `s`, against the
+//! spec, so every metadata value is read by trying the plausible types in turn.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -98,7 +87,6 @@ fn lenient_string_list(v: &OwnedValue) -> Vec<String> {
     lenient_string(v).into_iter().collect()
 }
 
-/// Build a [`Track`] from an MPRIS metadata map.
 pub fn track_from_metadata(md: &HashMap<String, OwnedValue>) -> Option<Track> {
     let title = md.get("xesam:title").and_then(lenient_string)?;
 
@@ -202,7 +190,6 @@ impl Session {
     /// Pick the player to follow. `wanted` matches either the short name
     /// (`spotify`) or the full bus name.
     pub async fn resolve(&self, wanted: Option<&str>) -> Result<String> {
-        // Accept the fully-qualified bus name as well as the short one.
         let wanted = wanted.map(|w| w.trim().trim_start_matches(MPRIS_PREFIX));
         super::choose(
             self.survey().await?,
@@ -249,9 +236,8 @@ impl PlayerHandle {
             .unwrap_or(false)
     }
 
-    /// Everything at once. Three bus reads here, which is what the pump did
-    /// inline before; on macOS the same call is one subprocess instead of three.
-    /// `None` means the player has gone away.
+    /// Three bus reads; on macOS the same call is one subprocess instead of
+    /// three. `None` means the player has gone away.
     pub async fn snapshot(&self) -> Option<Snapshot> {
         let position = self.position().await?;
         Some(Snapshot {
@@ -273,9 +259,8 @@ impl PlayerHandle {
         Ok(())
     }
 
-    /// Spawn the event pump: property changes, `Seeked`, and a slow `Position`
-    /// poll. The poll is not belt-and-braces — Spotify does not emit `Seeked`,
-    /// so without it a scrub would leave the lyrics stranded.
+    /// The `Position` poll is needed: Spotify does not emit `Seeked`, so
+    /// without it a scrub would leave the lyrics stranded.
     pub fn spawn(self, poll_interval: Duration) -> (EventRx, tokio::task::JoinHandle<()>) {
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = tokio::spawn(async move {

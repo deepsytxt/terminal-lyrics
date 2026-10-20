@@ -1,9 +1,5 @@
-//! Choosing between players when the user has not named one.
-//!
-//! This exists because of a real failure: a browser registers an idle
-//! `org.mpris.MediaPlayer2.chromium.instance26065` that sorts before `spotify`
-//! and reports no track, so taking the first name alphabetically meant
-//! following silence while music played next to it.
+//! Choosing a player when none is named. A browser's idle MPRIS entry sorts
+//! before `spotify` and has no track, so alphabetical order followed silence.
 
 use terminal_lyrics::player::{PlayerState, pick_reconnect, rank_players};
 

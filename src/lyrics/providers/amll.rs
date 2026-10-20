@@ -1,9 +1,5 @@
-//! The AMLL TTML database: community-made word-by-word lyrics, keyed by
-//! Spotify track id and published under CC0.
-//!
-//! A few thousand tracks against the millions elsewhere, but timed by hand, so
-//! when it has a track it is usually the most accurate answer there is. There
-//! is no search and no matching: the id the player hands over is the key.
+//! The AMLL TTML database: hand-timed word-by-word lyrics under CC0. There is
+//! no search: the Spotify track id the player hands over is the key.
 
 use std::time::Duration;
 
@@ -40,8 +36,8 @@ pub fn spotify_track_id(key: &str) -> Option<&str> {
     .find_map(|marker| key.split_once(marker).map(|(_, rest)| rest))
     .unwrap_or(key);
     let candidate = candidate.split(['?', '#', '/']).next().unwrap_or_default();
-    // Spotify ids are 22 base62 characters; anything else cannot be in the
-    // database, so it is not asked for.
+    // Spotify ids are 22 base62 characters; nothing else can be in the
+    // database.
     (candidate.len() == 22 && candidate.chars().all(|c| c.is_ascii_alphanumeric()))
         .then_some(candidate)
 }

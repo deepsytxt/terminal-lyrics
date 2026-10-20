@@ -1,8 +1,4 @@
 //! Parsing a colour source, and pulling an accent out of a palette.
-//!
-//! Everything here is pure: `accent()` itself touches the filesystem, so the
-//! parts worth testing are the spec parser and the palette reader, both of which
-//! take a `&str`.
 
 use std::path::PathBuf;
 
@@ -39,9 +35,8 @@ fn an_accent_repaints_only_the_lyric_text() {
 
 #[test]
 fn dimmed_text_is_the_lyric_colour_made_faint_not_palette_grey() {
-    // Palette 8 is often tuned to sit just above the background, and on a
-    // translucent or blurred one a background vocal drawn in it all but
-    // vanishes. Faint lets the terminal work the step down out from the text.
+    // Palette 8 can sit just above the background, where a backing vocal all
+    // but vanishes; faint lets the terminal step down from the text instead.
     let d = Theme::default();
     assert_eq!(d.dim.fg, Some(d.unsung));
     assert!(d.dim.add_modifier.contains(Modifier::DIM));
@@ -118,10 +113,8 @@ fn an_unknown_source_is_rejected_and_the_valid_ones_are_named() {
 
 #[test]
 fn a_pywal_palette_yields_its_accent_slot() {
-    // `color4` is the slot pywal's own templates use for highlights, so taking
-    // it is what makes the lyrics match the rest of a themed desktop.
-    // `r##` rather than `r#`: the palette is full of `"#rrggbb"`, and a `"#`
-    // inside would close an `r#"` string early.
+    // `color4` is what pywal's own templates use for highlights. `r##` because
+    // the palette's `"#` would close an `r#"` string early.
     let json = r##"{
         "special": {"background": "#1a1a1a", "foreground": "#eeeeee"},
         "colors": {"color0": "#1a1a1a", "color4": "#8a2be2", "color7": "#eeeeee"}
@@ -200,10 +193,9 @@ fn colours_drawn(screen: &terminal_lyrics::render::Screen<'_>, theme: Theme) -> 
 
 #[test]
 fn the_accent_is_visible_with_the_sweep_off() {
-    // The trap this exists for: `highlight` is 0 unless `sweep` applies, and
-    // `sweep` defaults to "never" — so a line is drawn entirely in `unsung`
-    // almost all of the time. An accent that only touched `sung` would be a
-    // setting that parses, prints back, and changes nothing on screen.
+    // The trap: `highlight` is 0 unless `sweep` applies, which by default it
+    // does not, so an accent that only touched `sung` would change nothing on
+    // screen.
     let accent = [0x8a, 0x2b, 0xe2];
     let screen = terminal_lyrics::render::Screen::Lyric {
         text: "HELLO",

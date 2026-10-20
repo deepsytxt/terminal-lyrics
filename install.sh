@@ -1,19 +1,14 @@
 #!/bin/sh
-# Installs the latest `lyrics` release binary on Linux or macOS:
+# Installs the latest `lyrics` release into ~/.local/bin on Linux or macOS:
 #
 #   curl -fsSL https://raw.githubusercontent.com/mgtaco/terminal-lyrics/main/install.sh | sh
-#
-# It picks the archive for this machine, checks it against the SHA-256 GitHub
-# computed when the archive was uploaded, and puts the binary in ~/.local/bin.
-# Two environment variables change that:
 #
 #   LYRICS_VERSION=0.3.0      a specific release instead of the latest
 #   LYRICS_INSTALL_DIR=DIR    somewhere other than ~/.local/bin
 #
 # Pass them to `sh`, not `curl`: `curl ... | LYRICS_VERSION=0.3.0 sh`.
-#
-# Everything is inside `main`, called on the last line, so a download cut off
-# halfway through runs nothing rather than half a script.
+# Everything is inside `main`, so a download cut off halfway through runs
+# nothing.
 
 set -eu
 
@@ -22,13 +17,9 @@ repo="mgtaco/terminal-lyrics"
 say() { printf '%s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 
-# Prints one line per release asset, "name digest", from the release JSON on
-# stdin. A JSON parser would be the honest tool, but neither jq nor python is
-# on every machine this has to run on, so this walks the text tracking only
-# string state and nesting depth. Depth 3 is the inside of one asset object
-# (release, assets array, asset), which is the only place an asset's own
-# `name` and `digest` sit — the uploader inside it is one deeper — so field
-# order and whitespace do not matter.
+# Prints "name digest" per release asset. jq and python are not on every
+# machine, so this tracks string state and depth: depth 3 is inside one asset
+# object.
 asset_digests() {
 	awk '
 		{ s = s $0 "\n" }
