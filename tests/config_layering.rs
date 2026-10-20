@@ -67,7 +67,7 @@ fn defaults_apply_with_no_file_and_no_flags() {
     assert_eq!(
         cfg.providers,
         Provider::DEFAULT_ORDER.to_vec(),
-        "all six providers, in the documented order"
+        "all seven providers, in the documented order"
     );
 }
 
@@ -131,7 +131,7 @@ lrcmux_sources = ["musixmatch", "ytmusic"]
 
 #[test]
 fn a_removed_provider_name_says_it_was_removed() {
-    let err = ConfigFile::parse(r#"providers = ["amll", "lrclib"]"#)
+    let err = ConfigFile::parse(r#"providers = ["lrcmux", "lrclib"]"#)
         .expect_err("a removed provider must not load silently");
     let full = format!("{err:#}");
     assert!(full.contains("removed"), "the message says why: {full}");
@@ -151,6 +151,7 @@ fn an_unknown_provider_name_is_rejected_and_the_valid_ones_are_named() {
         "the message names the typo: {full}"
     );
     for valid in [
+        "amll",
         "betterlyrics",
         "unison",
         "lyricsplus",

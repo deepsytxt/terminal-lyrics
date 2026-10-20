@@ -30,19 +30,20 @@ network = true
 # Which lyrics sources to consult. Dropping a name turns that provider off;
 # an unknown name is an error, not a silent skip.
 #
+#   amll          hand-timed TTML, few songs, Spotify only
 #   betterlyrics  Apple Music's TTML, syllable-timed
 #   unison        BetterLyrics' community lyrics, TTML or enhanced LRC
 #   lyricsplus    syllable-timed JSON with backing vocals
-#   kugou         KuGou's word-timed KRC
 #   lrclib        millions of tracks, line-level nearly always
 #   youtubemusic  YouTube Music's lyrics, line-level
+#   kugou         KuGou's word-timed KRC, often badly timed, so last
 #
 # All of them are asked at once. Better timing wins (word over line), and the
 # order here breaks ties between answers that are equally good. A provider
 # that is down is stepped over rather than failing the lookup.
 #
 # `lyrics paths` prints where the cache is.
-providers = ["betterlyrics", "unison", "lyricsplus", "kugou", "lrclib", "youtubemusic"]
+providers = ["amll", "betterlyrics", "unison", "lyricsplus", "lrclib", "youtubemusic", "kugou"]
 
 # Show one word at a time when the lyrics carry real per-word timings.
 # Lines without word timings are always shown whole.

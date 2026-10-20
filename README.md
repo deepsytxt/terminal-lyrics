@@ -7,7 +7,7 @@
 [![crates.io](https://img.shields.io/crates/v/terminal-lyrics?style=flat-square&color=B7410E&logo=rust&logoColor=white)](https://crates.io/crates/terminal-lyrics)
 [![Latest release](https://img.shields.io/github/v/release/mgtaco/terminal-lyrics?style=flat-square&label=release&color=2EA44F&logo=github&logoColor=white)](https://github.com/mgtaco/terminal-lyrics/releases/latest)
 [![platform: Linux | macOS | Windows](docs/badges/platform.svg)](#platforms)
-[![Six lyrics sources](https://img.shields.io/badge/lyrics-6_synced_sources-0EA5E9?style=flat-square)](#how-it-works)
+[![Seven lyrics sources](https://img.shields.io/badge/lyrics-7_synced_sources-0EA5E9?style=flat-square)](#how-it-works)
 [![MIT licence](https://img.shields.io/github/license/mgtaco/terminal-lyrics?style=flat-square&color=8A2BE2)](LICENSE)
 
 <picture>
@@ -21,7 +21,7 @@
 
 Run `lyrics`, play something, and the lyrics appear, one word at a time
 wherever the timings allow it. It follows your music player and pulls synced
-lyrics from six sources. There is no library to scan and nothing to
+lyrics from seven sources. There is no library to scan and nothing to
 pre-process.
 
 ## Install
@@ -190,6 +190,8 @@ output are replaced. Without cava nothing is drawn.
 ```bash
 lyrics status                 # player, track, position, and which source matched
 lyrics fetch --artist "Radiohead" --title "Creep" --duration 238
+lyrics fetch --artist "Kanye West" --title "Flashing Lights" \
+             --spotify-id 5TRPicyLGbAF2LGBFbHGvO   # word-timed, from AMLL
 lyrics fetch --artist "Daft Punk" --title "Get Lucky" --json   # the full answer, as JSON
 lyrics paths                  # where the config, cache and saved offsets live
 ```
@@ -258,14 +260,15 @@ works, which is most things.
 once a second. It knows those two by name rather than discovering players
 generally, because there is nothing left to discover with: the MediaRemote
 framework every now-playing tool used to call was restricted to entitled
-applications in macOS 15.4. Every provider matches on artist and title, so
-nothing about the lyrics is lost in the crossing. Neither app is ever launched
+applications in macOS 15.4. Spotify still hands over its track id, so AMLL
+works there as on Linux. Neither app is ever launched
 by this program; one that is not already running simply is not listed.
 
 **Windows**: the System Media Transport Controls, the API behind the media
 flyout in the volume panel, polled like macOS. Like MPRIS and unlike
 AppleScript it discovers players rather than knowing them by name, so anything
-that registers a session can be followed. Every provider matches on artist and
+that registers a session can be followed. What it does not carry is a Spotify
+track id, so AMLL is stepped over; every other provider matches on artist and
 title, so word-by-word lyrics work there as well.
 
 </details>
@@ -296,19 +299,20 @@ despite AppleScript having no seek notification to offer.
 Ahead of the network sit your own `--lrc-dir` files and, for a local file the
 player hands over as a `file://` URL, a lyrics file next to it:
 `song.lyricsfile.yaml`, `song.ttml`, `song.lrc` or `song.LRC`, in that order.
-Then six providers:
+Then seven providers:
 
 | source | timing | |
 | --- | :-: | --- |
+| [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) | syllable | timed by hand, so the most accurate when it has the song, but only a few thousand songs. Keyed by Spotify track id, so only asked when the player is Spotify |
 | [BetterLyrics](https://better-lyrics.boidu.dev) | syllable | Apple Music's TTML, matched on title, artist, album and length |
 | [Unison](https://unison.betterlyrics.org) | syllable | BetterLyrics' community-submitted lyrics, TTML or enhanced LRC |
 | [LyricsPlus](https://github.com/ibratabian17/lyricsplus) | syllable | JSON with per-syllable timing and backing vocals marked word by word |
-| KuGou | word | its KRC format, decrypted and inflated; translations baked into the lyrics are dropped |
 | [LRCLIB](https://lrclib.net) | line | millions of tracks, line-level nearly always, now and then a word-timed Lyricsfile |
 | YouTube Music | line | the lyrics YouTube Music shows, found through its own search |
+| KuGou | word | its KRC format, decrypted and inflated; translations baked into the lyrics are dropped. Its timings are often off, so it comes last and wins only when nothing else has the song word-timed |
 
 ```toml
-providers = ["betterlyrics", "unison", "lyricsplus", "kugou", "lrclib", "youtubemusic"]
+providers = ["amll", "betterlyrics", "unison", "lyricsplus", "lrclib", "youtubemusic", "kugou"]
 ```
 
 Dropping a name turns that provider off, and the order is their priority. They
@@ -339,7 +343,7 @@ word timing over line timing over plain, then the closest length.
 ### Word timing
 
 What appears on screen follows the lyrics rather than a preference. A source
-carrying real per-word timestamps (five of the six usually do) is shown one
+carrying real per-word timestamps (six of the seven usually do) is shown one
 word at a time, each word appearing on its own timestamp, whereas a line-level
 source has nothing to split on and so is shown whole. Because that decision is
 made per line rather than per file, a file that carries tags on only some of its
@@ -406,13 +410,13 @@ is no longer there.
 
 ## Limitations
 
-* Word timings are not universal. Five of the six sources usually carry them,
+* Word timings are not universal. Six of the seven sources usually carry them,
   but an obscure track can still come back line-level from LRCLIB or YouTube
   Music. `lyrics status` says which source you got.
 * Most of the sources are community-run, and some are unofficial APIs that can
   change without notice. One that is down is stepped over, but one that
   disappears for good would cost real coverage.
-* Anything held by none of the six will not be found, and pressing `r` will not
+* Anything held by none of the seven will not be found, and pressing `r` will not
   conjure it into existence.
 * Only players the platform exposes are visible: MPRIS on Linux, the media
   controls on Windows, and on macOS just Spotify and Apple Music. See
@@ -429,7 +433,9 @@ tacoproz1. This is a separate program written from scratch in Rust rather than a
 fork of that one, and it takes a different approach, with no music library to
 scan and no pre-processing pass.
 
-Lyrics come from BetterLyrics and Unison,
+Lyrics come from the
+[AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) (CC0),
+BetterLyrics and Unison,
 [LyricsPlus](https://github.com/ibratabian17/lyricsplus), KuGou,
 [LRCLIB](https://lrclib.net) and YouTube Music. None of them is affiliated with
 this project. Third-party licences are in [licenses/](licenses/).

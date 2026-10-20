@@ -1,4 +1,4 @@
-//! The six built-in providers, and the HTTP they share.
+//! The seven built-in providers, and the HTTP they share.
 //!
 //! Each provider is a fetch function that turns a [`Request`] into
 //! [`Lyrics`]: empty lyrics for "nothing here", an error for "could not ask".
@@ -6,6 +6,7 @@
 //! providers — is the same for every one of them and lives in
 //! [`super::engine`].
 
+pub mod amll;
 pub mod betterlyrics;
 pub mod kugou;
 pub mod lrclib;

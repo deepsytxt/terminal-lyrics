@@ -1,6 +1,6 @@
 //! Finding lyrics for a track.
 //!
-//! Six providers raced at once, with a cache in front of them whose files and
+//! Seven providers raced at once, with a cache in front of them whose files and
 //! keys follow a fixed format, so it can be shared. See
 //! [`cache::default_dir`].
 //!
@@ -9,12 +9,13 @@
 //!
 //! | provider | format | sync |
 //! |---|---|---|
+//! | `amll` | TTML, by Spotify id | word, voices, backing vocals |
 //! | `betterlyrics` | TTML | word, voices, backing vocals |
 //! | `unison` | TTML, LRC or plain | whatever was submitted |
 //! | `lyricsplus` | JSON | word, voices, backing vocals |
-//! | `kugou` | KRC, LRC if KRC fails | word |
 //! | `lrclib` | LRC, sometimes Lyricsfile | line, now and then word |
 //! | `youtubemusic` | JSON | line |
+//! | `kugou` | KRC, LRC if KRC fails | word |
 //!
 //! Everything is async and runs off the UI task, so a slow network never
 //! freezes the display.
@@ -134,6 +135,7 @@ pub fn local_lookup(dir: &Path, track: &Track) -> Option<Found> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Provider {
+    Amll,
     BetterLyrics,
     Unison,
     LyricsPlus,
@@ -144,17 +146,21 @@ pub enum Provider {
 
 impl Provider {
     /// The documented order, and the default.
-    pub const DEFAULT_ORDER: [Provider; 6] = [
+    pub const DEFAULT_ORDER: [Provider; 7] = [
+        Provider::Amll,
         Provider::BetterLyrics,
         Provider::Unison,
         Provider::LyricsPlus,
-        Provider::KuGou,
         Provider::LrcLib,
         Provider::YouTubeMusic,
+        // Last: its timings are often off, so it is only worth having when
+        // nothing else has the song word-timed.
+        Provider::KuGou,
     ];
 
     pub fn name(self) -> &'static str {
         match self {
+            Provider::Amll => "amll",
             Provider::BetterLyrics => "betterlyrics",
             Provider::Unison => "unison",
             Provider::LyricsPlus => "lyricsplus",
@@ -191,7 +197,7 @@ impl std::str::FromStr for Provider {
         // in a config file, and an ignored one would look like the provider
         // was simply never reached.
         let why = match want.as_str() {
-            "amll" | "lrcmux" => " (removed in 0.3.0)",
+            "lrcmux" => " (removed in 0.3.0)",
             _ => "",
         };
         Err(format!(
@@ -216,8 +222,8 @@ impl std::fmt::Display for Provider {
 }
 
 /// The request for this track: the title trimmed, every artist
-/// joined, a length only once it is over a second, and the file URL only for
-/// a local file.
+/// joined, a length only once it is over a second, the file URL only for a
+/// local file, and the Spotify id only for a Spotify track.
 pub fn request_for(track: &Track, network: bool) -> Request {
     Request {
         title: track.title.trim().to_string(),
@@ -229,6 +235,12 @@ pub fn request_for(track: &Track, network: bool) -> Request {
             .clone()
             .filter(|u| u.starts_with("file://"))
             .unwrap_or_default(),
+        spotify_id: [Some(&track.id), track.url.as_ref()]
+            .into_iter()
+            .flatten()
+            .find_map(|key| providers::amll::spotify_track_id(key))
+            .unwrap_or_default()
+            .to_string(),
         cache_only: !network,
     }
 }

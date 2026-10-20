@@ -48,8 +48,20 @@ async fn main() -> Result<()> {
             title,
             album,
             duration,
+            spotify_id,
             json,
-        }) => cmd_fetch(&cfg, &artist, &title, album.as_deref(), duration, json).await,
+        }) => {
+            cmd_fetch(
+                &cfg,
+                &artist,
+                &title,
+                album.as_deref(),
+                duration,
+                spotify_id.as_deref(),
+                json,
+            )
+            .await
+        }
         Some(Command::Status) => cmd_status(&cfg).await,
         None => cmd_run(cfg).await,
     }
@@ -69,6 +81,7 @@ async fn cmd_fetch(
     title: &str,
     album: Option<&str>,
     duration: Option<f64>,
+    spotify_id: Option<&str>,
     json: bool,
 ) -> Result<()> {
     if !cfg.network {
@@ -80,6 +93,7 @@ async fn cmd_fetch(
         artist: artist.to_string(),
         album: album.map(str::to_string),
         length: duration,
+        id: spotify_id.unwrap_or_default().to_string(),
         ..Default::default()
     };
 
