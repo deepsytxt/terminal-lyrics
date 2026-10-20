@@ -19,29 +19,57 @@
 
 </div>
 
-Run one command, play something, and the lyrics appear. There is no music
-library to scan, no pre-processing pass to sit through, and no Python
-environment to build first.
-
-It follows the player over MPRIS on Linux — AppleScript on macOS, the system
-media controls on Windows — and pulls synced lyrics from six sources, drawn one
-word at a time wherever the timings allow it.
+Run `lyrics`, play something, and the lyrics appear, one word at a time
+wherever the timings allow it. It follows your music player and pulls synced
+lyrics from six sources. There is no library to scan and nothing to
+pre-process.
 
 ## Install
 
-The binary is self-contained: it links its TLS in statically and talks to your
-player through whatever the platform already provides, so nothing needs
-installing alongside it — the only shared libraries it wants are the C runtime,
-which is already on your system. Any one of these is the whole install.
+**Linux or macOS**
 
-**With a Rust toolchain** (1.88 or newer):
+```bash
+curl -fsSL https://raw.githubusercontent.com/mgtaco/terminal-lyrics/main/install.sh | sh
+```
+
+**With a Rust toolchain** (1.88 or newer)
 
 ```bash
 cargo install terminal-lyrics
 ```
 
-**Without one**, take the archive for your machine from the [latest
-release](https://github.com/mgtaco/terminal-lyrics/releases/latest):
+**Windows**: download `lyrics-*-x86_64-pc-windows-msvc.tar.gz` from the
+[latest release](https://github.com/mgtaco/terminal-lyrics/releases/latest),
+unpack it with `tar -xzf` (built into Windows 10 and later) and put
+`lyrics.exe` somewhere on your `PATH`.
+
+Then run `lyrics` and play something. On macOS the first run asks to let your
+terminal control Spotify or Music, which is how it reads what is playing; allow
+it once and it stops asking. If you refused, the switch is under System
+Settings → Privacy & Security → Automation.
+
+<details>
+<summary><b>About the install script, and other ways to install</b></summary>
+
+[`install.sh`](install.sh) picks the archive for your machine from the latest
+release, checks it against the SHA-256 GitHub computed when it was uploaded,
+and puts `lyrics` in `~/.local/bin`, saying so if that is not on your `PATH`
+yet. It does not go through cargo or a package manager: run it again to update,
+and delete `~/.local/bin/lyrics` to uninstall. Set `LYRICS_VERSION=0.3.0` for a
+particular release or `LYRICS_INSTALL_DIR` for another directory, on the `sh`
+side of the pipe. To read it before it runs, download it, look it over, and
+then `sh install.sh`:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/mgtaco/terminal-lyrics/main/install.sh
+```
+
+Whichever way it gets there, the binary is self-contained: it links its TLS in
+statically and talks to your player through whatever the platform already
+provides, so nothing needs installing alongside it.
+
+**By hand**, take the archive for your machine from the
+[latest release](https://github.com/mgtaco/terminal-lyrics/releases/latest):
 
 | | System | Archive |
 | :-: | --- | --- |
@@ -56,9 +84,10 @@ tar -xzf lyrics-*.tar.gz
 mkdir -p ~/.local/bin && install -m755 lyrics-*/lyrics ~/.local/bin/lyrics
 ```
 
-The musl build is the one to take if you are unsure: it is statically linked, so
-it does not care how old your distribution's glibc is. GitHub shows a SHA-256
-next to each archive on the release page if you want to check a download.
+On Linux the musl build is the one to take if you are unsure: it is statically
+linked, so it does not care how old your distribution's glibc is. GitHub shows
+a SHA-256 next to each archive on the release page if you want to check a
+download.
 
 **On Arch**, `packaging/aur-bin/` is a `PKGBUILD` that installs the release
 binary through pacman, so it uninstalls cleanly like anything else:
@@ -67,11 +96,10 @@ binary through pacman, so it uninstalls cleanly like anything else:
 cd packaging/aur-bin && makepkg -si
 ```
 
-It is not on the AUR yet — account registration there is paused while Arch deals
-with a wave of automated sign-ups — but nothing about it needs the AUR, and this
-is the same `PKGBUILD` that will be published when it reopens.
+It is not on the AUR yet, because account registration there is paused, but
+this is the same `PKGBUILD` that will be published when it reopens.
 
-**Or from a checkout**:
+**From a checkout**:
 
 ```bash
 cargo build --release
@@ -81,25 +109,13 @@ mkdir -p ~/.local/bin && install -m755 target/release/lyrics ~/.local/bin/lyrics
 (`install -D` would make the directory for you, but only on Linux: the `-D` that
 macOS ships is a different flag entirely.)
 
-On macOS the first run raises the standard Automation prompt, because reading
-what Spotify is playing means sending it an Apple event. Allow it once and it
-stops asking. If you refuse and change your mind, the switch is under System
-Settings → Privacy & Security → Automation.
+</details>
 
 ## Use
 
 ```bash
 lyrics
 ```
-
-It finds your player, reads what is playing, downloads synced lyrics and draws
-them in block letters. Where the lyrics carry real per-word timings they appear
-**one word at a time**, each word arriving as it is sung, while line-level
-lyrics are shown a phrase at a time.
-
-Closing the player does not close the lyrics: the screen goes back to "nothing
-playing" and picks up the next player that starts with music in it, or the one
-you named with `--player` as soon as it is back.
 
 | key | |
 | --- | --- |
@@ -112,20 +128,14 @@ you named with `--player` as soon as it is back.
 | `c` | switch between capitals and lowercase |
 | `w` | one word at a time, or whole lines |
 | `s` | cycle the highlight: never → auto → always |
-| `v` | cava's spectrum bars under the lyrics, on or off |
+| `v` | [cava](https://github.com/karlstav/cava)'s spectrum bars under the lyrics, on or off |
 | `r` | forget the cached lyrics and look them up again |
 
-The shift belongs to the song, not to the session. A file that plays 300 ms late
-is fixed once with `,` — or, when a set of lyrics is timed against a different
-master and is out by two or three whole seconds, with `<` and `>` first and `,`
-and `.` to finish — and the correction is written to disk against that track
-and reapplied every time it comes on again — while the next song starts from
-`offset_ms` in the config, which is what that setting now means: where a song
-starts before anyone has nudged it. `0` forgets a song's shift and puts it back
-there. `lyrics paths` prints the file and how many songs are in it, and `lyrics
-status` shows whether the song playing has a saved shift.
+A shift belongs to the song: fix one that runs late once and it stays fixed
+every time it comes on again. Closing the player does not close the lyrics;
+they pick up the next player that starts.
 
-The flags worth knowing:
+The flags worth knowing (`lyrics --help` lists them all):
 
 | | |
 | --- | --- |
@@ -142,14 +152,40 @@ The flags worth knowing:
 | `--dim-color '#9a9cae'` | a fixed colour for background vocals, instead of faint |
 | `--visualizer` | start with cava's spectrum bars on |
 
-With [cava](https://github.com/karlstav/cava) installed, `v` (or `--visualizer`,
-or `visualizer = true` in the config) puts its spectrum under the lyrics: the
-bars stand on the status line and reach halfway up the space between them, in
-the same faint colour as the status line. Your own `~/.config/cava/config` is read for its input settings, so
-if cava already captures one player's PipeWire node, so do these bars; only the
-bar count and output are replaced. Without cava nothing is drawn.
+<details>
+<summary><b>Per-song sync</b></summary>
 
-## Without the TUI
+A file that plays 300 ms late is fixed once with `,`. When a set of lyrics is
+timed against a different master and is out by two or three whole seconds, use
+`<` and `>` first and `,` and `.` to finish. The correction is written to disk
+against that track and reapplied every time it comes on again, while the next
+song starts from `offset_ms` in the config: where a song starts before anyone
+has nudged it. `0` forgets a song's shift and puts it back there.
+
+The shifts are kept as JSON in the data directory,
+`~/.local/share/terminal-lyrics/offsets.json`, or
+`~/Library/Application Support/terminal-lyrics/offsets.json` on macOS. Only
+songs you have actually nudged appear in it, so it stays small enough to read
+and edit by hand, and deleting it returns every song to the default.
+`lyrics paths` prints the file and how many songs are in it, and
+`lyrics status` shows whether the song playing has a saved shift.
+
+</details>
+
+<details>
+<summary><b>Visualizer</b></summary>
+
+With [cava](https://github.com/karlstav/cava) installed, `v` (or
+`--visualizer`, or `visualizer = true` in the config) puts its spectrum under
+the lyrics: the bars stand on the status line and reach halfway up the space
+between them, in the same faint colour as the status line. Your own
+`~/.config/cava/config` is read for its input settings, so if cava already
+captures one player's PipeWire node, so do these bars; only the bar count and
+output are replaced. Without cava nothing is drawn.
+
+</details>
+
+### Without the TUI
 
 ```bash
 lyrics status                 # player, track, position, and which source matched
@@ -158,31 +194,25 @@ lyrics fetch --artist "Daft Punk" --title "Get Lucky" --json   # the full answer
 lyrics paths                  # where the config, cache and saved offsets live
 ```
 
-When something is not working, `status` is the place to start, since it prints
-every player and what each one is doing, along with the track it settled on, the
-length the player reported, the cache key, whether the lyrics carry real word
-timings and where they came from. The strip along the bottom of the visualiser
-shows only that last part, the source, so that it stays out of the way of the
-lyrics.
+When something is not working, start with `lyrics status`. It prints every
+player and what each one is doing, the track it settled on, the length the
+player reported, the cache key, whether the lyrics carry real word timings and
+where they came from.
 
 ## Configuration
 
 Settings live in `~/.config/terminal-lyrics/config.toml`, or
-`~/Library/Application Support/terminal-lyrics/config.toml` on macOS; `lyrics
-paths` prints the one this build actually reads. `config.example.toml` lists
-every key. Flags override the file and the file overrides the defaults, with a
-test asserting that ordering field by field.
+`~/Library/Application Support/terminal-lyrics/config.toml` on macOS;
+`lyrics paths` prints the one this build actually reads.
+[`config.example.toml`](config.example.toml) lists every key. Flags override
+the file and the file overrides the defaults.
 
-Per-song offsets are not settings and do not live in the config file; they are
-kept as JSON in the data directory — `~/.local/share/terminal-lyrics/offsets.json`,
-or `~/Library/Application Support/terminal-lyrics/offsets.json` on macOS. Only
-songs you have actually nudged appear in it, so it stays small enough to read
-and edit by hand, and deleting it just returns every song to the default.
+<details>
+<summary><b>Colours</b></summary>
 
-Colour is the one setting worth explaining here, because the default is to have
-no opinion. The lyrics are drawn in your terminal's own palette entries, so they
+By default the lyrics are drawn in your terminal's own palette entries, so they
 already match whatever scheme it is set to, and there is deliberately no list of
-built-in themes to pick from — that would trade the matching away for a menu.
+built-in themes to pick from: that would trade the matching away for a menu.
 What there is instead is a source for one accent:
 
 ```bash
@@ -193,14 +223,52 @@ lyrics --color-source file:PATH        # any palette in pywal's JSON shape
 
 Only the lyric text is repainted, background vocals and status lines included,
 since they are the same colour drawn faint; the sweep highlight stays a palette
-colour, so the display still follows the terminal everywhere else. A
-palette that cannot be read falls back to the terminal rather than refusing to
-start, and `lyrics status` says when that has happened.
+colour, so the display still follows the terminal everywhere else. A palette
+that cannot be read falls back to the terminal rather than refusing to start,
+and `lyrics status` says when that has happened.
 
 Faint is the terminal's own attribute rather than a grey picked here, so it
 holds up on translucent and blurred backgrounds where the palette's dark grey
 all but disappears. If your terminal draws it too weak, too strong or not at
 all, `dim_color = "#rrggbb"` (or `--dim-color`) names the colour outright.
+
+</details>
+
+## Platforms
+
+| | Follows | |
+| :-: | --- | --- |
+| <img src="docs/icons/linux.svg" width="15" alt=""> | any MPRIS player | over D-Bus, with no subprocess anywhere |
+| <img src="docs/icons/apple.svg" width="15" alt=""> | Spotify and Apple Music | through their scripting dictionaries, once a second |
+| <img src="docs/icons/windows.svg" width="15" alt=""> | anything in the system media controls | the media flyout's API, once a second |
+
+<details>
+<summary><b>Details per platform</b></summary>
+
+The program is the same everywhere; only the way it finds your player differs,
+and that lives behind one seam in `src/player/`. Exactly one backend is compiled
+into a given binary, so a Linux package never carries the macOS code or the
+other way round.
+
+**Linux**: MPRIS over D-Bus, directly, with no subprocess anywhere: property
+changes and `Seeked` arrive as signals. Anything exposing an MPRIS interface
+works, which is most things.
+
+**macOS**: Spotify and Apple Music through their scripting dictionaries, polled
+once a second. It knows those two by name rather than discovering players
+generally, because there is nothing left to discover with: the MediaRemote
+framework every now-playing tool used to call was restricted to entitled
+applications in macOS 15.4. Every provider matches on artist and title, so
+nothing about the lyrics is lost in the crossing. Neither app is ever launched
+by this program; one that is not already running simply is not listed.
+
+**Windows**: the System Media Transport Controls, the API behind the media
+flyout in the volume panel, polled like macOS. Like MPRIS and unlike
+AppleScript it discovers players rather than knowing them by name, so anything
+that registers a session can be followed. Every provider matches on artist and
+title, so word-by-word lyrics work there as well.
+
+</details>
 
 ## How it works
 
@@ -211,7 +279,7 @@ with a track loaded and then anything else, with the name as a stable tiebreak.
 Simply taking the first name alphabetically turns out to be wrong in practice,
 because browsers register idle MPRIS instances such as `chromium.instance26065`
 that sort ahead of `spotify` while reporting no track at all. That ranking is
-platform-neutral and shared by both backends. If the wrong one is being picked,
+platform-neutral and shared by every backend. If the wrong one is being picked,
 `lyrics status` lists what each of them is doing.
 
 ### Position
@@ -226,8 +294,9 @@ despite AppleScript having no seek notification to offer.
 ### Sources
 
 Ahead of the network sit your own `--lrc-dir` files and, for a local file the
-player hands over as a `file://` URL, a lyrics file next to it: `song.lyricsfile.yaml`,
-`song.ttml`, `song.lrc` or `song.LRC`, in that order. Then six providers:
+player hands over as a `file://` URL, a lyrics file next to it:
+`song.lyricsfile.yaml`, `song.ttml`, `song.lrc` or `song.LRC`, in that order.
+Then six providers:
 
 | source | timing | |
 | --- | :-: | --- |
@@ -270,8 +339,8 @@ word timing over line timing over plain, then the closest length.
 ### Word timing
 
 What appears on screen follows the lyrics rather than a preference. A source
-carrying real per-word timestamps — five of the six usually do — is shown one word
-at a time with each word appearing on its own timestamp, whereas a line-level
+carrying real per-word timestamps (five of the six usually do) is shown one
+word at a time, each word appearing on its own timestamp, whereas a line-level
 source has nothing to split on and so is shown whole. Because that decision is
 made per line rather than per file, a file that carries tags on only some of its
 lines still shows the rest in full. Where a long word is timed in pieces, the
@@ -288,23 +357,23 @@ effect throughout: nothing invented is ever written to disk.
 
 `auto` is the middle setting and it asks what the highlight would actually be
 telling you. Its job is to say which word of the line is being sung, so it wants
-real per-word timestamps to place it — and it wants the rest of the line there to
-place it against. One word at a time already answers the question by itself, so
-`auto` stays out of the way whenever word-by-word is on. `--sweep` overrides
+real per-word timestamps to place it, and it wants the rest of the line there
+to place it against. One word at a time already answers the question by itself,
+so `auto` stays out of the way whenever word-by-word is on. `--sweep` overrides
 that: it sweeps the syllables of the word on screen.
 
 ### Two voices
 
-Where two people are singing at once, both are on screen. A backing vocal — the
+Where two people are singing at once, both are on screen. A backing vocal (the
 `(ooh ooh)` behind the line, which the syllable-timed sources mark as its own
-voice — sits above the line, faint and a size smaller, because it is texture
+voice) sits above the line, faint and a size smaller, because it is texture
 rather than the thing being read. In word-by-word mode it steps through its own
 words alongside the line's when the source times them, but it is never swept:
 the line underneath keeps the highlight. The other half of a duet is drawn full
 size and lit, since it is a voice and not an echo, and is treated exactly like
-the line: in word-by-word mode both voices show the word each is singing, side by
-side in time, and the sweep runs across both. Only when the partner has no word timings
-of its own are the two shown as whole phrases.
+the line: in word-by-word mode both voices show the word each is singing, side
+by side in time, and the sweep runs across both. Only when the partner has no
+word timings of its own are the two shown as whole phrases.
 
 Overlap alone is not enough to call something a duet. Across 39 files from the
 AMLL database the median overlap between one line and the next is a quarter of a
@@ -312,75 +381,42 @@ second, and three quarters of them are under a second: that is one phrase's tail
 running into the next one's head, not two people singing, and stacking it would
 flicker a second line up a couple of times a song. So a duet has to overlap for a
 full second and for half of the shorter phrase. A backing vocal needs no such
-test — the source says outright that it is a second voice.
+test: the source says outright that it is a second voice.
 
 ### Drawing
 
 Letters are pixel art drawn with half blocks (`▀ ▄ █`), so one pixel is a column
-wide and half a row tall — square on most terminals. Capitals, lowercase, digits
-and punctuation are drawn by hand; an accented letter is its base letter with
-the mark stamped on, which covers every Latin-script language, Vietnamese's
-stacked accents included. A line takes the capitals' five rows, plus a row or two
-only when something in it needs them — an accent on a capital, a descender — and
-the capitals stay where they were, so a word with a `g` in it does not bob. A
-line mostly in another script (Japanese, Cyrillic) is shown as plain text, and a
-stray symbol the font has no art for is shown as itself rather than dropped.
+wide and half a row tall, which is square on most terminals. Capitals,
+lowercase, digits and punctuation are drawn by hand; an accented letter is its
+base letter with the mark stamped on, which covers every Latin-script language,
+Vietnamese's stacked accents included. A line takes the capitals' five rows,
+plus a row or two only when something in it needs them (an accent on a capital,
+a descender), and the capitals stay where they were, so a word with a `g` in it
+does not bob. A line mostly in another script (Japanese, Cyrillic) is shown as
+plain text, and a stray symbol the font has no art for is shown as itself rather
+than dropped.
 
 ratatui diffs the screen buffer, so a frame that has not changed emits no bytes
 at all. Lines wrap at word boundaries and the font steps down a size before
 anything would be clipped, so nothing is ever truncated. Where two voices will
 not fit, both step down together first, and only if even the smallest font cannot
-hold them is the second voice dropped — the line being read then goes back to the
+hold them is the second voice dropped. The line being read then goes back to the
 size it would have had on its own, rather than staying shrunk for something that
 is no longer there.
 
-## Platforms
-
-The program is the same everywhere; only the way it finds your player differs,
-and that lives behind one seam in `src/player/`. Exactly one backend is compiled
-into a given binary, so a Linux package never carries the macOS code or the other
-way round.
-
-### <img src="docs/icons/linux.svg" width="17" alt=""> Linux
-
-MPRIS over D-Bus, directly, with no subprocess anywhere: property changes and
-`Seeked` arrive as signals. Anything exposing an MPRIS interface works, which is
-most things.
-
-### <img src="docs/icons/apple.svg" width="17" alt=""> macOS
-
-Spotify and Apple Music through their scripting dictionaries, polled once a
-second. It knows those two by name rather than discovering players generally,
-because there is nothing left to discover with: the MediaRemote framework every
-now-playing tool used to call was restricted to entitled applications in macOS
-15.4. Every provider matches on artist and title, so nothing about the lyrics
-is lost in the crossing. Neither app
-is ever launched by this program; one that is not already running simply is not
-listed.
-
-### <img src="docs/icons/windows.svg" width="17" alt=""> Windows
-
-The System Media Transport Controls — the API behind the media flyout in the
-volume panel — polled like macOS. Like MPRIS and unlike AppleScript it discovers
-players rather than knowing them by name, so anything that registers a session
-can be followed. Every provider matches on artist and title, so word-by-word
-lyrics work there as well.
-
 ## Limitations
 
-* Word timings are still not universal. Five of the six sources usually carry
-  them, but an obscure track can still come back line-level from LRCLIB or
-  YouTube Music, with no moving highlight. `lyrics status` says which source you
-  got and whether it carried real word timings.
-* Most of the sources are community-run services, and some are unofficial APIs
-  that can change without notice. The lookup steps over one that is down rather
-  than failing, but a permanent disappearance would cost real coverage.
+* Word timings are not universal. Five of the six sources usually carry them,
+  but an obscure track can still come back line-level from LRCLIB or YouTube
+  Music. `lyrics status` says which source you got.
+* Most of the sources are community-run, and some are unofficial APIs that can
+  change without notice. One that is down is stepped over, but one that
+  disappears for good would cost real coverage.
 * Anything held by none of the six will not be found, and pressing `r` will not
   conjure it into existence.
-* On Linux, only MPRIS players are visible, so anything that does not expose an
-  MPRIS interface goes unnoticed. On Windows the equivalent is registering with
-  the media controls. On macOS it is narrower than either: Spotify and Apple
-  Music, and nothing else. See [Platforms](#platforms).
+* Only players the platform exposes are visible: MPRIS on Linux, the media
+  controls on Windows, and on macOS just Spotify and Apple Music. See
+  [Platforms](#platforms).
 * macOS needs Automation permission for the player you use. Refuse the prompt and
   the program says so and points at the setting, rather than reporting that
   nothing is playing.
