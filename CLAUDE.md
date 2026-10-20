@@ -6,6 +6,14 @@ A line here that only describes the app goes stale the first time it changes.
 
 Repo: https://github.com/mgtaco/terminal-lyrics (`origin`, branch `main`).
 
+## Writing code
+
+- Keep it simple.
+- Do not edit code in response to a question.
+- Comment only what the code cannot say: a non-obvious why, a trap, a
+  workaround. Never narrate what the code does or restate a name. Keep it to a
+  line or two, and delete useless or paragraph comments you come across.
+
 ## Checks
 
 ```bash
