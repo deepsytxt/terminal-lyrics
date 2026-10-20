@@ -17,8 +17,8 @@ conflicts=('terminal-lyrics' 'terminal-lyrics-git')
 options=('!strip')
 _dist="lyrics-${pkgver}-x86_64-unknown-linux-gnu"
 source=("${_dist}.tar.gz::${url}/releases/download/v${pkgver}/${_dist}.tar.gz")
-# GitHub's own digest for the release asset, which `gh release view --json assets`
-# prints; `updpkgsums` recomputes it locally after a version bump.
+# GitHub's own digest for the release asset. `pkgver` and this are set by the
+# release workflow once the archives are up, so neither is bumped by hand.
 sha256sums=('d61da988aba7bcc49bb69235efe1b232c69adbd420209b105a3d843097a25aaa')
 
 package() {

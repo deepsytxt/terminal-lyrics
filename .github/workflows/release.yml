@@ -220,3 +220,99 @@ jobs:
           out=$("${{ runner.temp }}/bin/lyrics" --version)
           echo "$out"
           [ "$out" = "lyrics ${GITHUB_REF_NAME#v}" ]
+
+  # The PKGBUILD pins the archive's SHA-256, which only exists once the release
+  # is up, so it is bumped here rather than in the release commit.
+  aur-bin:
+    name: Point the AUR -bin package at this release
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Read the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # pkgver cannot hold a hyphen, so a pre-release cannot be packaged.
+          case "$version" in
+            *-*)
+              echo "::notice::${GITHUB_REF_NAME} is a pre-release; the PKGBUILD stays where it is"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          archive="lyrics-${version}-x86_64-unknown-linux-gnu.tar.gz"
+          digest=$(gh release view "$GITHUB_REF_NAME" --json assets \
+            --jq ".assets[] | select(.name == \"${archive}\") | .digest")
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::${GITHUB_REF_NAME} has no SHA-256 for ${archive}"; exit 1 ;;
+          esac
+
+          {
+            echo "skip=false"
+            echo "version=${version}"
+            echo "sha256=${digest#sha256:}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update the PKGBUILD
+        if: steps.release.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA256: ${{ steps.release.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          f=packaging/aur-bin/PKGBUILD
+          sed -i \
+            -e "s/^pkgver=.*/pkgver=${VERSION}/" \
+            -e "s/^pkgrel=.*/pkgrel=1/" \
+            -e "s/^sha256sums=.*/sha256sums=('${SHA256}')/" \
+            "$f"
+          # sed succeeds even when a pattern matched nothing.
+          grep -qx "pkgver=${VERSION}" "$f"
+          grep -qx "pkgrel=1" "$f"
+          grep -qx "sha256sums=('${SHA256}')" "$f"
+          bash -n "$f"
+          git diff
+
+      - name: Check the source downloads and matches
+        if: steps.release.outputs.skip == 'false'
+        env:
+          SHA256: ${{ steps.release.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          url=$(bash -c 'source packaging/aur-bin/PKGBUILD; echo "${source[0]#*::}"')
+          echo "$url"
+          curl -fsSL -o archive.tar.gz "$url"
+          echo "${SHA256}  archive.tar.gz" | sha256sum -c -
+          rm archive.tar.gz
+
+      - name: Commit and push
+        if: steps.release.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "::notice::the PKGBUILD is already on ${VERSION}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Install ${VERSION} with the Arch -bin package" \
+            -m "Points the PKGBUILD at the ${VERSION} release, with GitHub's SHA-256 for its archive."
+          # main may have moved since the tag.
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 5
+          done
+          echo "::error::could not push the PKGBUILD bump"
+          exit 1

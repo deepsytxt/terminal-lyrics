@@ -47,6 +47,8 @@ Re-render the demo GIFs when a change alters what they show.
 - Release archive names come from `.github/workflows/release.yml`;
   `install.sh` and `packaging/aur-bin/PKGBUILD` download them by name, so
   change all three together.
+- After pushing a release tag, `git pull` before the next push: the release
+  workflow commits the PKGBUILD bump to `main` once the release is up.
 - When trying `install.sh`, set `LYRICS_INSTALL_DIR` to a scratch directory.
   Its default, `~/.local/bin`, is where the dev build lives, and a test run
   replaces it with the last release.
