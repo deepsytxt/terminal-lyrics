@@ -190,3 +190,33 @@ jobs:
       - name: Nothing to publish
         if: steps.check.outputs.already == 'true'
         run: echo "::notice::${GITHUB_REF_NAME} is already on crates.io"
+
+  # The README's one-line install, against the release just published: a
+  # change to the archive names or layout should fail here, on the tag that
+  # made it, rather than for the next person to paste the line.
+  install-script:
+    name: install.sh (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install this release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LYRICS_VERSION: ${{ github.ref_name }}
+          LYRICS_INSTALL_DIR: ${{ runner.temp }}/bin
+        run: sh install.sh
+
+      - name: Check the version
+        run: |
+          set -eu
+          out=$("${{ runner.temp }}/bin/lyrics" --version)
+          echo "$out"
+          [ "$out" = "lyrics ${GITHUB_REF_NAME#v}" ]

@@ -69,3 +69,26 @@ jobs:
 
       - name: Test
         run: cargo test
+
+  # `install.sh` against the latest published release, on both systems it
+  # covers. It is the one piece of the install that nothing else exercises, and
+  # it breaks quietly: the README keeps pointing at it either way. The release
+  # workflow runs the same check against each new tag.
+  install-script:
+    name: install.sh (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the latest release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LYRICS_INSTALL_DIR: ${{ runner.temp }}/bin
+        run: sh install.sh
+
+      - name: Run it
+        run: '"${{ runner.temp }}/bin/lyrics" --version'
