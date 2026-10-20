@@ -39,6 +39,7 @@ sha2 = "0.11.1"
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "signal", "sync", "process", "io-util"] }
 toml = "1.1.4"
+toml_edit = "0.25.13"
 unicode-normalization = "0.1.26"
 unicode-properties = "0.1.4"
 unicode-script = "0.5.8"

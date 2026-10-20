@@ -22,6 +22,7 @@ use crate::config::Config;
 use crate::lyrics::{Engine, Outcome, Source};
 use crate::offsets::Offsets;
 use crate::player::{Link, PlayerEvent, PlayerHandle, Session, Track, pick_reconnect};
+use crate::prefs::Prefs;
 use crate::render::font::{self, Font};
 use crate::render::{Screen, SecondVoice, Theme, bars};
 use crate::sync::{Change, SyncEngine};
@@ -75,6 +76,8 @@ pub struct App {
     /// Per-track sync nudges, reloaded on every track change and written back
     /// on every keypress that moves one.
     offsets: Offsets,
+    /// Where the display keys save their choices: the config file.
+    prefs: Prefs,
     state: LyricState,
     font: Font,
     theme: Theme,
@@ -87,7 +90,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cfg: Config, offsets: Offsets, now: Instant) -> Self {
+    pub fn new(cfg: Config, offsets: Offsets, prefs: Prefs, now: Instant) -> Self {
         let font = font::by_name(&cfg.font).unwrap_or_else(font::block);
         // Read once at startup rather than per frame: a palette on disk is not
         // going to change mid-song, and the draw loop should not touch the
@@ -102,6 +105,7 @@ impl App {
             cfg,
             engine,
             offsets,
+            prefs,
             state: LyricState::Idle,
             font,
             theme,
@@ -175,6 +179,17 @@ impl App {
         self.engine.clock().offset_ms()
     }
 
+    /// Save a display key's new setting to the config file and say what it
+    /// is now. One that cannot be saved still applies for this run, and the
+    /// notice says why it will not be there next time.
+    fn remember(&mut self, key: &str, value: impl Into<toml_edit::Value>, msg: impl Into<String>) {
+        let msg = msg.into();
+        match self.prefs.set(key, value) {
+            Ok(()) => self.note(msg),
+            Err(e) => self.note(format!("{msg}  (not saved: {e:#})")),
+        }
+    }
+
     fn note(&mut self, msg: impl Into<String>) {
         self.notice = Some((msg.into(), Instant::now()));
     }
@@ -197,9 +212,10 @@ pub async fn run(
     link: Link,
     lookup: Arc<Engine>,
     offsets: Offsets,
+    prefs: Prefs,
 ) -> Result<()> {
     let terminal = ratatui::try_init().context("failed to take over the terminal")?;
-    let result = run_inner(cfg, session, link, lookup, offsets, terminal).await;
+    let result = run_inner(cfg, session, link, lookup, offsets, prefs, terminal).await;
     ratatui::restore();
     result
 }
@@ -210,10 +226,11 @@ async fn run_inner(
     link: Link,
     lookup: Arc<Engine>,
     offsets: Offsets,
+    prefs: Prefs,
     mut terminal: DefaultTerminal,
 ) -> Result<()> {
     let start = Instant::now();
-    let mut app = App::new(cfg, offsets, start);
+    let mut app = App::new(cfg, offsets, prefs, start);
     let mut keys = EventStream::new();
     let mut ticker = tokio::time::interval(Duration::from_millis(app.cfg.tick_ms));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -701,11 +718,12 @@ async fn handle_key(
             let next = font::next_after(app.font.name);
             app.font = font::by_name(next).unwrap_or_else(font::block);
             app.cfg.font = next.to_string();
-            app.note(format!("font: {next}"));
+            app.remember("font", next, format!("font: {next}"));
         }
         KeyCode::Char('c') => {
             app.cfg.case = app.cfg.case.next();
-            app.note(format!("case: {}", app.cfg.case.label()));
+            let case = app.cfg.case.label();
+            app.remember("case", case, format!("case: {case}"));
         }
         KeyCode::Char('s') => {
             app.cfg.sweep = app.cfg.sweep.next();
@@ -714,19 +732,21 @@ async fn handle_key(
                 LyricState::Ready { word_timed, .. }
                     if app.cfg.sweep.applies(word_timed, app.cfg.word_by_word)
             );
-            app.note(format!(
-                "highlight: {} ({})",
-                app.cfg.sweep.label(),
-                if active { "on" } else { "off" }
-            ));
+            let sweep = app.cfg.sweep.label();
+            app.remember(
+                "sweep",
+                sweep,
+                format!("highlight: {sweep} ({})", if active { "on" } else { "off" }),
+            );
         }
         KeyCode::Char('w') => {
             app.cfg.word_by_word = !app.cfg.word_by_word;
-            app.note(if app.cfg.word_by_word {
+            let msg = if app.cfg.word_by_word {
                 "one word at a time"
             } else {
                 "whole lines"
-            });
+            };
+            app.remember("word_by_word", app.cfg.word_by_word, msg);
         }
         KeyCode::Char('v' | 'V') => {
             app.cfg.visualizer = !app.cfg.visualizer;
@@ -735,7 +755,7 @@ async fn handle_key(
                 (None, true) => "visualizer on".to_string(),
                 (_, false) => "visualizer off".to_string(),
             };
-            app.note(msg);
+            app.remember("visualizer", app.cfg.visualizer, msg);
         }
         KeyCode::Char('r') => {
             if let Some(track) = app.engine.track().cloned() {

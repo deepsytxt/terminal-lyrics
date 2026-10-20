@@ -1,6 +1,8 @@
 # terminal-lyrics configuration.
 # Copy to ~/.config/terminal-lyrics/config.toml — every key is optional, and
 # every one of them is also a command-line flag, which takes precedence.
+# The f, c, w, s and v keys save their choice here (font, case, word_by_word,
+# sweep, visualizer), changing only that line and keeping your comments.
 
 # Which player to follow. Omit to let the program choose, which prefers whatever
 # is actually playing. On Linux this is an MPRIS name, e.g. "spotify" or "vlc";

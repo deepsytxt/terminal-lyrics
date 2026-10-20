@@ -13,6 +13,7 @@ use std::time::Instant;
 use terminal_lyrics::config::Config;
 use terminal_lyrics::offsets::Offsets;
 use terminal_lyrics::player::{PlayerEvent, Track};
+use terminal_lyrics::prefs::Prefs;
 use terminal_lyrics::tui::App;
 
 fn scratch(name: &str) -> PathBuf {
@@ -44,7 +45,12 @@ fn play(app: &mut App, id: &str) {
 }
 
 fn app_with(path: &Path, cfg: Config) -> App {
-    App::new(cfg, Offsets::new(Some(path.to_path_buf())), Instant::now())
+    App::new(
+        cfg,
+        Offsets::new(Some(path.to_path_buf())),
+        Prefs::in_memory(),
+        Instant::now(),
+    )
 }
 
 #[test]

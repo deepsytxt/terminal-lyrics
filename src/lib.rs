@@ -15,6 +15,7 @@ pub mod lrc;
 pub mod lyrics;
 pub mod offsets;
 pub mod player;
+pub mod prefs;
 pub mod render;
 pub mod sync;
 pub mod timeline;

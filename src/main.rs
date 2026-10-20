@@ -11,6 +11,7 @@ use terminal_lyrics::lyrics::cache::Cache;
 use terminal_lyrics::lyrics::{self, Engine, Outcome};
 use terminal_lyrics::offsets::Offsets;
 use terminal_lyrics::player::{Link, Session, Track};
+use terminal_lyrics::prefs::Prefs;
 use terminal_lyrics::tui;
 
 #[tokio::main]
@@ -63,7 +64,7 @@ async fn main() -> Result<()> {
             .await
         }
         Some(Command::Status) => cmd_status(&cfg).await,
-        None => cmd_run(cfg).await,
+        None => cmd_run(cfg, Prefs::new(config_path)).await,
     }
 }
 
@@ -279,7 +280,7 @@ fn report_lyrics(cfg: &Config, found: &terminal_lyrics::lyrics::Found) {
     );
 }
 
-async fn cmd_run(cfg: Config) -> Result<()> {
+async fn cmd_run(cfg: Config, prefs: Prefs) -> Result<()> {
     let session = Session::open().await?;
     let name = session.resolve(cfg.player.as_deref()).await?;
     let link = Link::open(&session, &name).await?;
@@ -287,5 +288,5 @@ async fn cmd_run(cfg: Config) -> Result<()> {
     let engine = engine()?;
     let offsets = Offsets::new(config::offsets_path());
 
-    tui::run(cfg, session, link, engine, offsets).await
+    tui::run(cfg, session, link, engine, offsets, prefs).await
 }

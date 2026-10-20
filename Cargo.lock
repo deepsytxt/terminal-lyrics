@@ -2678,6 +2678,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "toml",
+ "toml_edit",
  "unicode-normalization",
  "unicode-properties",
  "unicode-script",
@@ -2921,6 +2922,7 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 
