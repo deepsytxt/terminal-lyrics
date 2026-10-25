@@ -81,6 +81,12 @@ pub struct Cli {
     #[arg(long, overrides_with = "word_by_word")]
     pub whole_lines: bool,
 
+    /// Show lyrics at most N words at a time, each group timed to the song,
+    /// for line-level lyrics as well as word-timed ones. 1 is one word at a
+    /// time and 0 shows whole lines. The default is 3.
+    #[arg(long, value_name = "N")]
+    pub chunk_words: Option<usize>,
+
     /// Stack a second voice above the line when two are singing at once — a
     /// background vocal, or the other half of a duet. This is the default;
     /// `--single-voice` turns it off.

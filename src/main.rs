@@ -255,18 +255,22 @@ fn report_lyrics(cfg: &Config, found: &terminal_lyrics::lyrics::Found) {
             "line-level only"
         }
     );
-    println!(
-        "display   {}",
-        if word_timed && cfg.word_by_word {
-            "one word at a time"
-        } else {
-            "whole lines"
-        }
-    );
+    let display = match cfg.chunk_words {
+        0 if word_timed && cfg.word_by_word => "one word at a time".to_string(),
+        0 => "whole lines".to_string(),
+        1 => "one word at a time".to_string(),
+        n => format!("up to {n} words at a time"),
+    };
+    println!("display   {display}");
+    let one_word = if cfg.chunk_words > 0 {
+        cfg.chunk_words == 1
+    } else {
+        cfg.word_by_word
+    };
     println!(
         "highlight {} -> {}",
         cfg.sweep.label(),
-        if cfg.sweep.applies(word_timed, cfg.word_by_word) {
+        if cfg.sweep.applies(word_timed, one_word) {
             "on"
         } else {
             "off"

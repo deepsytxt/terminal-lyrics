@@ -32,6 +32,16 @@ impl ActiveWord {
     }
 }
 
+/// A few whole words of a line, on screen on their own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Chunk {
+    /// Char range of the chunk in [`crate::lrc::Line::text`].
+    pub range: Range<usize>,
+    /// Chars of the chunk reached so far, counted from its start. The rest is
+    /// laid out but held blank, so the chunk does not shift as words arrive.
+    pub reveal: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct Timeline {
     lyrics: Lyrics,
@@ -114,6 +124,46 @@ impl Timeline {
         sweep_words(&s.words, s.text.chars().count(), pos).unwrap_or(0)
     }
 
+    /// The few words of line `index` that belong on screen at `pos`: at most
+    /// `max_words` of them, split where the line breathes (see
+    /// [`chunk_ranges`]). `None` before the line's first word is sung.
+    ///
+    /// Real word timings pick the chunk when the line has them. Otherwise the
+    /// time is guessed from character counts, over the part of the line's
+    /// window that is plausibly singing (see [`sung_span`]); the guess is
+    /// display-only, like the interpolated sweep.
+    pub fn chunk_at(&self, index: usize, pos: f64, max_words: usize) -> Option<Chunk> {
+        let line = self.lyrics.lines.get(index)?;
+        let chars: Vec<char> = line.text.chars().collect();
+        let words = word_ranges(&chars);
+        let chunks = group_words(&chars, &words, max_words);
+        let last = chunks.len().checked_sub(1)?;
+
+        if !line.words.is_empty() {
+            let active = active_word_in(&line.text, &line.words, pos)?;
+            let at = chunks
+                .iter()
+                .position(|c| active.range.start < c.end)
+                .unwrap_or(last);
+            let range = chunks[at].clone();
+            let reveal = active.sung_to.saturating_sub(range.start).min(range.len());
+            return Some(Chunk { range, reveal });
+        }
+
+        let total = chars.len();
+        let sung = sung_span(line.end - line.start, total);
+        let frac = ((pos - line.start) / sung).clamp(0.0, 1.0);
+        let reached = (total as f64 * frac) as usize;
+        let at = chunks.iter().position(|c| reached < c.end).unwrap_or(last);
+        let range = chunks[at].clone();
+        // Each word of the chunk appears as the one before it is finished.
+        let reveal = words
+            .iter()
+            .find(|w| w.start >= range.start && w.end <= range.end && w.end > reached)
+            .map_or(range.len(), |w| w.end - range.start);
+        Some(Chunk { range, reveal })
+    }
+
     /// Follows word tags when there are any; otherwise an estimate, linear
     /// across the line by character count.
     pub fn highlight_chars(&self, index: usize, pos: f64) -> usize {
@@ -136,6 +186,76 @@ impl Timeline {
         let frac = ((pos - line.start) / span).clamp(0.0, 1.0);
         ((total as f64) * frac).round() as usize
     }
+}
+
+/// How a line splits into chunks of at most `max_words` words, as char ranges
+/// of `text`. A sentence end (`.` `!` `?` `…`) always closes a chunk, and the
+/// words of each sentence are shared out evenly, so seven words at three a
+/// time come out as 3 + 2 + 2 rather than 3 + 3 + 1: a lone last word reads
+/// as a mistake.
+pub fn chunk_ranges(text: &str, max_words: usize) -> Vec<Range<usize>> {
+    let chars: Vec<char> = text.chars().collect();
+    group_words(&chars, &word_ranges(&chars), max_words)
+}
+
+/// Char ranges of the whitespace-separated words of `chars`.
+fn word_ranges(chars: &[char]) -> Vec<Range<usize>> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, c) in chars.iter().enumerate() {
+        match (c.is_whitespace(), start) {
+            (false, None) => start = Some(i),
+            (true, Some(s)) => {
+                out.push(s..i);
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(s) = start {
+        out.push(s..chars.len());
+    }
+    out
+}
+
+/// Whether `word` ends a sentence, ignoring a closing quote or bracket.
+fn ends_phrase(chars: &[char], word: &Range<usize>) -> bool {
+    chars[word.clone()]
+        .iter()
+        .rev()
+        .find(|&&c| !matches!(c, '"' | '\'' | '»' | '”' | '’' | ')'))
+        .is_some_and(|&c| matches!(c, '.' | '!' | '?' | '…'))
+}
+
+fn group_words(chars: &[char], words: &[Range<usize>], max_words: usize) -> Vec<Range<usize>> {
+    let max_words = max_words.max(1);
+    let mut out = Vec::new();
+    let mut from = 0;
+    for (i, word) in words.iter().enumerate() {
+        if i + 1 < words.len() && !ends_phrase(chars, word) {
+            continue;
+        }
+        let phrase = &words[from..=i];
+        let groups = phrase.len().div_ceil(max_words);
+        let mut at = 0;
+        for g in 0..groups {
+            let take = (phrase.len() - at).div_ceil(groups - g);
+            out.push(phrase[at].start..phrase[at + take - 1].end);
+            at += take;
+        }
+        from = i + 1;
+    }
+    out
+}
+
+/// Seconds of a line's window (`window`, up to the next line) that are
+/// actually singing. A line is stamped where it starts and runs to the next
+/// one, so the window includes any pause after it; counting all of it would
+/// show the last words late. Capped at a plausible pace for `chars`
+/// characters and at most 92% of the window.
+fn sung_span(window: f64, chars: usize) -> f64 {
+    let pace = 0.6 + chars as f64 * 0.12;
+    (window.max(0.0) * 0.92).min(pace).max(0.5)
 }
 
 /// The word being sung in a voice with these word timings. See

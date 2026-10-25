@@ -185,6 +185,11 @@ pub struct Config {
     /// Show one word at a time when the lyrics carry real word timings.
     /// Ignored for line-level sources, which have nothing to split on.
     pub word_by_word: bool,
+    /// Show a line a few words at a time instead of whole: at most this many
+    /// words on screen, each group timed to the song. 0 shows whole lines (or
+    /// one word at a time, per `word_by_word`); 1 is one word at a time, and
+    /// works on line-level lyrics too.
+    pub chunk_words: usize,
     /// Stack a second voice above the line when two sing at once; off shows the
     /// one that came in most recently.
     pub overlapping_voices: bool,
@@ -214,6 +219,7 @@ impl Default for Config {
             color_source: ColorSource::Terminal,
             dim_color: None,
             word_by_word: true,
+            chunk_words: 3,
             overlapping_voices: true,
             visualizer: false,
             tick_ms: 30,
@@ -238,6 +244,7 @@ pub struct ConfigFile {
     #[serde(default, deserialize_with = "deserialize_hex")]
     pub dim_color: Option<[u8; 3]>,
     pub word_by_word: Option<bool>,
+    pub chunk_words: Option<usize>,
     pub overlapping_voices: Option<bool>,
     pub visualizer: Option<bool>,
     pub tick_ms: Option<u64>,
@@ -295,6 +302,14 @@ impl Config {
                 .word_by_word_choice()
                 .or(file.word_by_word)
                 .unwrap_or(d.word_by_word),
+            // `--whole-lines` means whole lines, so it also turns this off
+            // unless `--chunk-words` is given alongside it.
+            chunk_words: cli
+                .chunk_words
+                .or((cli.word_by_word_choice() == Some(false)).then_some(0))
+                .or(file.chunk_words)
+                .unwrap_or(d.chunk_words)
+                .min(8),
             overlapping_voices: cli
                 .overlapping_voices_choice()
                 .or(file.overlapping_voices)

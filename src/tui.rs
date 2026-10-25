@@ -393,7 +393,13 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
             } => match timeline.locate(pos) {
                 Position::Line { index } => {
                     if let Some(line) = timeline.line(index) {
-                        let sweep = app.cfg.sweep.applies(*word_timed, app.cfg.word_by_word);
+                        let chunked = app.cfg.chunk_words > 0;
+                        // `Auto` stays out of the way when one word is on screen.
+                        let one_word = match chunked {
+                            true => app.cfg.chunk_words == 1,
+                            false => app.cfg.word_by_word,
+                        };
+                        let sweep = app.cfg.sweep.applies(*word_timed, one_word);
                         highlight = if sweep {
                             timeline.highlight_chars(index, pos)
                         } else {
@@ -418,7 +424,8 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                         // some lines and not others. A duet partner without
                         // timings keeps both phrases whole, since one word
                         // stacked under a whole phrase reads as a mistake.
-                        let split = app.cfg.word_by_word
+                        let split = !chunked
+                            && app.cfg.word_by_word
                             && !line.words.is_empty()
                             && partner.is_none_or(|p| !p.words.is_empty());
 
@@ -447,11 +454,30 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                             }
                         }
 
-                        match split {
+                        match (chunked, split) {
+                            // A few words at a time. The whole chunk goes to
+                            // the renderer and its unreached words are held
+                            // blank, so it does not shift as they arrive.
+                            (true, _) => {
+                                // Before the first word is sung there is
+                                // nothing to show yet; hold the screen.
+                                if let Some(chunk) =
+                                    timeline.chunk_at(index, pos, app.cfg.chunk_words)
+                                {
+                                    highlight = highlight.saturating_sub(chunk.range.start);
+                                    reveal = chunk.reveal;
+                                    line_text = line
+                                        .text
+                                        .chars()
+                                        .skip(chunk.range.start)
+                                        .take(chunk.range.len())
+                                        .collect();
+                                }
+                            }
                             // The whole word goes to the renderer, so it is
                             // laid out at its final size and does not crawl
                             // sideways as its syllables fill in.
-                            true => {
+                            (false, true) => {
                                 // The line has started but its first word has
                                 // not: hold the screen rather than flash the
                                 // whole line for a frame.
@@ -468,7 +494,7 @@ fn draw(terminal: &mut DefaultTerminal, app: &App, cava: Option<&Cava>) -> Resul
                                         .collect();
                                 }
                             }
-                            false => {
+                            (false, false) => {
                                 line_text = line.text.clone();
                                 reveal = line.char_len();
                             }
@@ -677,7 +703,14 @@ async fn handle_key(
             let active = matches!(
                 app.state,
                 LyricState::Ready { word_timed, .. }
-                    if app.cfg.sweep.applies(word_timed, app.cfg.word_by_word)
+                    if app.cfg.sweep.applies(
+                        word_timed,
+                        if app.cfg.chunk_words > 0 {
+                            app.cfg.chunk_words == 1
+                        } else {
+                            app.cfg.word_by_word
+                        },
+                    )
             );
             let sweep = app.cfg.sweep.label();
             app.remember(
@@ -694,6 +727,21 @@ async fn handle_key(
                 "whole lines"
             };
             app.remember("word_by_word", app.cfg.word_by_word, msg);
+        }
+        KeyCode::Char('p') => {
+            // Off, then one word, then two, then three: wraps back to off.
+            app.cfg.chunk_words = match app.cfg.chunk_words {
+                0 => 1,
+                1 => 2,
+                2 => 3,
+                _ => 0,
+            };
+            let msg = match app.cfg.chunk_words {
+                0 => "whole lines".to_string(),
+                1 => "one word at a time".to_string(),
+                n => format!("up to {n} words at a time"),
+            };
+            app.remember("chunk_words", app.cfg.chunk_words as i64, msg);
         }
         KeyCode::Char('v' | 'V') => {
             app.cfg.visualizer = !app.cfg.visualizer;

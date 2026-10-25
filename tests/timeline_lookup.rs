@@ -1,7 +1,7 @@
 //! Line lookup and sweep behaviour, especially at boundaries.
 
 use terminal_lyrics::lrc;
-use terminal_lyrics::timeline::{Position, Timeline};
+use terminal_lyrics::timeline::{Position, Timeline, chunk_ranges};
 
 fn tl(src: &str) -> Timeline {
     Timeline::new(lrc::parse(src))
@@ -321,4 +321,112 @@ fn a_duet_partner_sweeps_to_its_own_word_timings() {
     // Its last word runs to when that voice stops, not to when it was cut off.
     let s = t.secondary(index, 13.25).unwrap();
     assert!((s.words.last().unwrap().end - 14.0).abs() < 0.001);
+}
+
+fn chunk_texts(text: &str, max_words: usize) -> Vec<String> {
+    chunk_ranges(text, max_words)
+        .into_iter()
+        .map(|r| text.chars().skip(r.start).take(r.len()).collect())
+        .collect()
+}
+
+/// What `chunk_at` puts on screen for line 0: the chunk laid out whole, and
+/// the part of it that is inked.
+fn on_screen(t: &Timeline, pos: f64, max_words: usize) -> Option<(String, String)> {
+    let chunk = t.chunk_at(0, pos, max_words)?;
+    let text: String = t
+        .line(0)?
+        .text
+        .chars()
+        .skip(chunk.range.start)
+        .take(chunk.range.len())
+        .collect();
+    let inked = text.chars().take(chunk.reveal).collect();
+    Some((text, inked))
+}
+
+fn expected(text: &str, inked: &str) -> Option<(String, String)> {
+    Some((text.to_string(), inked.to_string()))
+}
+
+#[test]
+fn a_line_is_shared_out_in_even_chunks() {
+    assert_eq!(chunk_texts("one two three four", 3), ["one two", "three four"]);
+    assert_eq!(chunk_texts("a b c d e f g", 3), ["a b c", "d e", "f g"]);
+    assert_eq!(chunk_texts("one two three", 3), ["one two three"]);
+    assert_eq!(chunk_texts("one two three", 1), ["one", "two", "three"]);
+    assert_eq!(chunk_texts("one two three", 0), ["one", "two", "three"]);
+    assert_eq!(chunk_texts("  ", 3), Vec::<String>::new());
+    assert_eq!(chunk_texts("", 3), Vec::<String>::new());
+}
+
+#[test]
+fn a_sentence_end_always_closes_a_chunk() {
+    assert_eq!(
+        chunk_texts("Hello, darkness my old friend. I've come to talk", 3),
+        ["Hello, darkness my", "old friend.", "I've come", "to talk"]
+    );
+    // A closing quote after the full stop does not hide it.
+    assert_eq!(chunk_texts("Go on. \"Stay here.\" Now", 3), ["Go on.", "\"Stay here.\"", "Now"]);
+}
+
+#[test]
+fn russian_text_is_chunked_like_any_other() {
+    assert_eq!(
+        chunk_texts("Сон, три восьмёрки и ещё одна", 3),
+        ["Сон, три восьмёрки", "и ещё одна"]
+    );
+}
+
+#[test]
+fn line_level_lyrics_are_shown_a_chunk_at_a_time() {
+    let t = tl("[00:10.00]one two three four five six\n[00:20.00]after\n");
+    assert!(!t.lyrics().has_word_timings());
+    // The first words as the line starts, the rest of the chunk held blank.
+    assert_eq!(on_screen(&t, 10.0, 3), expected("one two three", "one"));
+    assert_eq!(on_screen(&t, 10.5, 3), expected("one two three", "one two"));
+    assert_eq!(on_screen(&t, 11.0, 3), expected("one two three", "one two three"));
+    // The second chunk takes over part-way through, and fills in the same way.
+    assert_eq!(on_screen(&t, 13.0, 3), expected("four five six", "four five"));
+    assert_eq!(on_screen(&t, 14.5, 3), expected("four five six", "four five six"));
+}
+
+#[test]
+fn a_pause_after_a_line_does_not_stretch_its_chunks() {
+    // The next line is fifty seconds away; the words are not sung that slowly.
+    let t = tl("[00:10.00]one two three four five six\n[01:00.00]after\n");
+    assert_eq!(on_screen(&t, 14.5, 3), expected("four five six", "four five six"));
+}
+
+#[test]
+fn chunks_of_one_word_work_on_line_level_lyrics() {
+    let t = tl("[00:10.00]one two three four five six\n[00:20.00]after\n");
+    let (text, _) = on_screen(&t, 10.0, 1).unwrap();
+    assert_eq!(text, "one");
+}
+
+#[test]
+fn word_timed_lyrics_are_chunked_by_their_real_timings() {
+    let t = tl(WORDED);
+    assert_eq!(on_screen(&t, 9.9, 2), None, "nothing before the first word");
+    assert_eq!(on_screen(&t, 10.0, 2), expected("one two", "one"));
+    assert_eq!(on_screen(&t, 11.0, 2), expected("one two", "one two"));
+    // Held through the gap before the next chunk, then replaced by it.
+    assert_eq!(on_screen(&t, 11.8, 2), expected("one two", "one two"));
+    assert_eq!(on_screen(&t, 12.5, 2), expected("three", "three"));
+}
+
+#[test]
+fn a_syllable_timed_word_still_builds_up_inside_a_chunk() {
+    let t = tl(SYLLABLES);
+    assert_eq!(on_screen(&t, 10.0, 3), expected("believe it", "be"));
+    assert_eq!(on_screen(&t, 10.4, 3), expected("believe it", "believe"));
+    assert_eq!(on_screen(&t, 11.0, 3), expected("believe it", "believe it"));
+}
+
+#[test]
+fn a_missing_line_or_an_empty_one_has_no_chunk() {
+    let t = tl("[00:10.00]\n[00:20.00]words\n");
+    assert_eq!(t.chunk_at(0, 10.5, 3), None);
+    assert_eq!(t.chunk_at(99, 10.5, 3), None);
 }

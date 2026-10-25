@@ -126,12 +126,13 @@ lyrics
 | `0` | forget this song's shift and go back to the default |
 | `f` | cycle font: block → compact → mini |
 | `c` | switch between capitals and lowercase |
-| `w` | one word at a time, or whole lines |
+| `p` | how many words at a time: whole lines → 1 → 2 → 3 |
+| `w` | one word at a time, or whole lines (when `p` is off) |
 | `s` | cycle the highlight: never → auto → always |
 | `v` | [cava](https://github.com/karlstav/cava)'s spectrum bars under the lyrics, on or off |
 | `r` | forget the cached lyrics and look them up again |
 
-What `f`, `c`, `w`, `s` and `v` choose is saved to your config file, so the
+What `f`, `c`, `p`, `w`, `s` and `v` choose is saved to your config file, so the
 next run starts the way you left it. A shift belongs to the song: fix one that
 runs late once and it stays fixed every time it comes on again. Closing the
 player does not close the lyrics; they pick up the next player that starts.
@@ -143,6 +144,7 @@ The flags worth knowing (`lyrics --help` lists them all):
 | `--player spotify` | pin one player when several are running |
 | `--font compact` | smaller letters: `block`, `compact` or `mini` |
 | `--case lower` | lowercase letters instead of capitals |
+| `--chunk-words 2` | show at most this many words at a time, timed to the song (default 3; `1` is one word, `0` whole lines) |
 | `--whole-lines` | always show the full phrase, never word by word |
 | `--sweep` | highlight the sung part of whatever is on screen |
 | `--single-voice` | one line at a time, even when two people are singing |
@@ -396,10 +398,11 @@ Letters are pixel art drawn with half blocks (`▀ ▄ █`), so one pixel is a 
 wide and half a row tall, which is square on most terminals. Capitals,
 lowercase, digits and punctuation are drawn by hand; an accented letter is its
 base letter with the mark stamped on, which covers every Latin-script language,
-Vietnamese's stacked accents included. A line takes the capitals' five rows,
+Vietnamese's stacked accents included. Russian, Ukrainian and Belarusian are
+drawn in both `block` and `compact`, `Ё`, `Й`, `Ї` and `Ў` included. A line takes the capitals' five rows,
 plus a row or two only when something in it needs them (an accent on a capital,
 a descender), and the capitals stay where they were, so a word with a `g` in it
-does not bob. A line mostly in another script (Japanese, Cyrillic) is shown as
+does not bob. A line mostly in a script the font has no art for (Japanese, say) is shown as
 plain text, and a stray symbol the font has no art for is shown as itself rather
 than dropped.
 

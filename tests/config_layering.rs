@@ -380,3 +380,23 @@ fn a_malformed_dim_colour_is_rejected_rather_than_never_drawn() {
     assert!(ConfigFile::parse(r##"dim_color = "#888""##).is_err());
     assert!(ConfigFile::parse("dim_color = 8").is_err());
 }
+
+#[test]
+fn chunk_words_defaults_to_three_and_flags_beat_the_file() {
+    assert_eq!(resolve("", &[]).chunk_words, 3);
+    assert_eq!(resolve("chunk_words = 2", &[]).chunk_words, 2);
+    assert_eq!(resolve("chunk_words = 2", &["--chunk-words", "1"]).chunk_words, 1);
+    assert_eq!(resolve("", &["--chunk-words", "0"]).chunk_words, 0);
+    // A silly value is capped rather than trusted.
+    assert_eq!(resolve("chunk_words = 99", &[]).chunk_words, 8);
+}
+
+#[test]
+fn whole_lines_turns_chunking_off_unless_asked_otherwise() {
+    assert_eq!(resolve("", &["--whole-lines"]).chunk_words, 0);
+    assert_eq!(
+        resolve("", &["--whole-lines", "--chunk-words", "2"]).chunk_words,
+        2
+    );
+    assert_eq!(resolve("chunk_words = 2", &["--word-by-word"]).chunk_words, 2);
+}

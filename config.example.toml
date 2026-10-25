@@ -1,8 +1,8 @@
 # terminal-lyrics configuration.
 # Copy to ~/.config/terminal-lyrics/config.toml — every key is optional, and
 # every one of them is also a command-line flag, which takes precedence.
-# The f, c, w, s and v keys save their choice here (font, case, word_by_word,
-# sweep, visualizer), changing only that line and keeping your comments.
+# The f, c, p, w, s and v keys save their choice here (font, case, chunk_words,
+# word_by_word, sweep, visualizer), changing only that line and keeping your comments.
 
 # Which player to follow. Omit to let the program choose, which prefers whatever
 # is actually playing. On Linux this is an MPRIS name, e.g. "spotify" or "vlc";
@@ -47,8 +47,16 @@ network = true
 # `lyrics paths` prints where the cache is.
 providers = ["amll", "betterlyrics", "unison", "lyricsplus", "lrclib", "youtubemusic", "kugou"]
 
+# Show a few words at a time instead of the whole line: at most this many,
+# each group coming up as it is sung. Works on every song: with real word
+# timings they are followed, and without them the time is estimated from the
+# length of the words. 1 is one word at a time, 0 shows whole lines (and then
+# `word_by_word` below decides). The `p` key cycles it.
+chunk_words = 3
+
 # Show one word at a time when the lyrics carry real per-word timings.
-# Lines without word timings are always shown whole.
+# Lines without word timings are always shown whole. Only used when
+# chunk_words is 0.
 word_by_word = true
 
 # When two voices are singing at once, show both, stacked. A background vocal
